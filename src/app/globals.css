@@ -1,8 +1,88 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --app-bg: #F1F3F6;
+  --card-bg: #FFFFFF;
+  --sidebar-bg: #FAFBFC;
+  --sidebar-hover: #F0F2F5;
+  --sidebar-active: #FFFFFF;
+
+  --deep: #0B1929;
+  --deep-2: #12283F;
+  --deep-grad: linear-gradient(150deg, #12283F 0%, #0B1929 58%, #07111C 100%);
+
+  --blue: #003F7D;
+  --blue-700: #00305f;
+  --blue-50: #EAF2FA;
+  --orange: #E76B16;
+  --orange-700: #C95C0E;
+  --orange-50: #FBEDDF;
+  --orange-ink: #B4520C;
+  --orange-ink-hover: #9E4608;
+  --accent-text: #B4520C;
+  --accent-text-hover: #9E4608;
+
+  --text-1: #111827;
+  --text-2: #5A6472;
+  --text-3: #636B78;
+  --on-dark: #EAEFF5;
+  --on-dark-dim: #93A6BD;
+
+  --border: #E7EAEF;
+  --border-strong: #DBE0E7;
+  --row-alt: #FAFBFC;
+  --row-hover: #F4F7FB;
+
+  --success: #16A34A;
+  --success-bg: #E7F6EC;
+  --warning: #D97706;
+  --warning-bg: #FBF0E0;
+  --danger: #C8102E;
+  --danger-bg: #FCEBEE;
+  --info: #003F7D;
+  --info-bg: #E7EFF7;
+  --neutral: #5A6472;
+  --neutral-bg: #EFF1F4;
+
+  --surface-soft: #F4F6F9;
+  --track: #EDF0F4;
+  --input-bg: #FFFFFF;
+  --menu-bg: #FFFFFF;
+  --topbar-bg: rgba(241, 243, 246, .88);
+  --link-blue: #003F7D;
+  --tint-info: #F5F9FD;
+  --tint-info-border: #DCE8F4;
+  --tint-ok: #F4FBF7;
+  --tint-ok-border: #D3EBDD;
+  --tint-warn: #FFF8F4;
+  --badge-success-fg: #137a39;
+  --badge-warning-fg: #8A4A06;
+  --badge-danger-fg: #C8102E;
+  --badge-info-fg: #003F7D;
+  --badge-neutral-fg: #5A6472;
+
+  --hatch: repeating-linear-gradient(135deg, #DFE4EA 0 5px, transparent 5px 10px);
+  --hatch-on-dark: repeating-linear-gradient(135deg, rgba(255, 255, 255, .16) 0 5px, transparent 5px 10px);
+  --chart-1: #0B1929;
+  --chart-2: #2D74B8;
+
+  --r-card: 22px;
+  --r-tile: 18px;
+  --r-input: 12px;
+  --r-badge: 999px;
+  --r-pill: 999px;
+
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, .05);
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, .04);
+  --shadow-raise: 0 4px 16px rgba(16, 24, 40, .07);
+  --shadow-pop: 0 18px 44px rgba(11, 25, 41, .18), 0 2px 10px rgba(11, 25, 41, .08);
+  --shadow-deep: 0 10px 28px rgba(11, 25, 41, .22);
+
+  --sidebar-w: 258px;
+
+  --font-head: "Barlow Condensed", sans-serif;
+  --font-body: "DM Sans", sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
 }
 
 @theme inline {
@@ -14,8 +94,67 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --app-bg: #0D1219;
+    --card-bg: #171E27;
+    --sidebar-bg: #10161E;
+    --sidebar-hover: #1A222C;
+    --sidebar-active: #212B37;
+
+    --deep: #060C14;
+    --deep-2: #0E1C2C;
+    --deep-grad: linear-gradient(150deg, #16334F 0%, #0B1929 60%, #060C14 100%);
+
+    --blue: #3F86CC;
+    --blue-700: #356f9f;
+    --blue-50: rgba(63, 134, 204, .16);
+    --orange: #F2882E;
+    --orange-700: #d9701f;
+    --orange-50: rgba(242, 136, 46, .16);
+    --orange-ink: #B4520C;
+    --orange-ink-hover: #9E4608;
+    --accent-text: #F2882E;
+    --accent-text-hover: #FAA35A;
+
+    --text-1: #E9EEF4;
+    --text-2: #9AA5B4;
+    --text-3: #8A95A4;
+
+    --border: #252E39;
+    --border-strong: #323C49;
+    --row-alt: rgba(255, 255, 255, .02);
+    --row-hover: rgba(63, 134, 204, .12);
+
+    --success-bg: rgba(22, 163, 74, .16);
+    --warning-bg: rgba(217, 119, 6, .18);
+    --danger-bg: rgba(224, 52, 78, .16);
+    --info-bg: rgba(63, 134, 204, .16);
+    --neutral-bg: rgba(255, 255, 255, .07);
+
+    --surface-soft: #1C242E;
+    --track: #232C37;
+    --input-bg: #101720;
+    --menu-bg: #1C242E;
+    --topbar-bg: rgba(13, 18, 25, .88);
+    --link-blue: #5FA0E0;
+    --tint-info: rgba(63, 134, 204, .12);
+    --tint-info-border: rgba(63, 134, 204, .3);
+    --tint-ok: rgba(22, 163, 74, .12);
+    --tint-ok-border: rgba(22, 163, 74, .3);
+    --tint-warn: rgba(242, 136, 46, .12);
+    --badge-success-fg: #5FD68F;
+    --badge-warning-fg: #F0B45C;
+    --badge-danger-fg: #FF8095;
+    --badge-info-fg: #7FB2E8;
+    --badge-neutral-fg: #AEB8C5;
+
+    --hatch: repeating-linear-gradient(135deg, #2C3642 0 5px, transparent 5px 10px);
+    --chart-1: #7FB2E8;
+    --chart-2: #4F8FD0;
+
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, .3);
+    --shadow-raise: 0 6px 20px rgba(0, 0, 0, .35);
+    --shadow-pop: 0 18px 44px rgba(0, 0, 0, .55), 0 2px 10px rgba(0, 0, 0, .35);
+    --shadow-deep: 0 10px 28px rgba(0, 0, 0, .45);
   }
 }
 
