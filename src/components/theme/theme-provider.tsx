@@ -25,9 +25,7 @@ function readInitialTheme(): Theme {
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
     if (stored === "dark" || stored === "light") return stored;
-  } catch {
-    /* localStorage may be unavailable */
-  }
+  } catch {}
   return window.matchMedia("(prefers-color-scheme: dark)").matches
     ? "dark"
     : "light";
@@ -36,8 +34,6 @@ function readInitialTheme(): Theme {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("light");
 
-  // Sync from storage/OS once mounted (the inline script already applied it
-  // to <html> before paint; this keeps React state in agreement).
   useEffect(() => {
     setThemeState(readInitialTheme());
   }, []);
@@ -46,9 +42,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     document.documentElement.dataset.theme = theme;
     try {
       window.localStorage.setItem(STORAGE_KEY, theme);
-    } catch {
-      /* ignore */
-    }
+    } catch {}
   }, [theme]);
 
   const setTheme = (next: Theme) => setThemeState(next);

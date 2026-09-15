@@ -27,16 +27,10 @@ export function TopbarActionsProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/** Read the currently registered topbar actions (used by the Topbar). */
 export function useTopbarActions(): ReactNode {
   return useContext(TopbarActionsContext)?.actions ?? null;
 }
 
-/**
- * Register the primary action buttons for the current page in the topbar.
- * Pass a factory plus a deps array so the node is only re-registered when its
- * inputs change (avoids a set-state-on-render loop).
- */
 export function usePageActions(
   factory: () => ReactNode,
   deps: DependencyList,

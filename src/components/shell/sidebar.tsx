@@ -19,22 +19,21 @@ export function Sidebar() {
 
   return (
     <aside className="flex h-full flex-col border-r border-border bg-sidebar px-3.5 pb-3.5">
-      {/* Brand */}
-      <div className="flex items-center gap-[11px] px-2 pb-[26px] pt-[22px]">
-        <span className="grid h-[38px] w-[38px] shrink-0 place-items-center rounded-[11px] bg-orange font-head text-2xl font-bold text-white shadow-[0_2px_8px_rgba(231,107,22,0.32)]">
-          D
-        </span>
-        <div>
-          <div className="font-head text-[26px] font-bold leading-none tracking-[0.3px] text-text-1">
-            Desp<b className="text-orange">Hub</b>
-          </div>
-          <div className="mt-[3px] text-[9.5px] font-semibold uppercase tracking-[1.6px] text-text-3">
-            Despachante
-          </div>
-        </div>
+      <div className="px-2 pb-[26px] pt-[22px]">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/desphub-logo-horizontal.svg"
+          alt="DespHub"
+          className="h-9 w-auto dark:hidden"
+        />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/desphub-logo-reverse.svg"
+          alt="DespHub"
+          className="hidden h-9 w-auto dark:block"
+        />
       </div>
 
-      {/* Nav groups */}
       <nav className="flex flex-1 flex-col overflow-y-auto">
         {NAV_GROUPS.map((group, gi) => (
           <div key={group.label} className={cn(gi > 0 && "pt-[22px]")}>
@@ -67,7 +66,6 @@ export function Sidebar() {
           </div>
         ))}
 
-        {/* Theme toggle */}
         <button
           type="button"
           onClick={toggleTheme}
@@ -78,7 +76,6 @@ export function Sidebar() {
         </button>
       </nav>
 
-      {/* User */}
       <div className="flex items-center gap-[11px] border-t border-border px-2 pb-1 pt-3">
         <Avatar>DH</Avatar>
         <div className="min-w-0">
