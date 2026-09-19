@@ -179,8 +179,16 @@ export interface Restriction {
 export interface Debt {
   type: string;
   year: number;
-  amount: number;
+  amount: string;
   dueDate: string;
+}
+
+export interface Tax {
+  year: string;
+  status: string;
+  amount: string;
+  dueDate: string;
+  activeDebt: boolean;
 }
 
 export interface StepError {
@@ -198,8 +206,77 @@ export interface VehicleQueryResponse {
   violations: Violations;
   restrictions: Restriction[];
   debts: Debt[];
+  taxes: Tax[];
   status: string;
   errors: StepError[];
+}
+
+export type Role = "DESPHUB_ADMIN" | "OFFICE_OWNER" | "EMPLOYEE";
+
+export type Permission =
+  | "CLIENTS_READ"
+  | "CLIENTS_WRITE"
+  | "VEHICLES_READ"
+  | "VEHICLES_WRITE"
+  | "SERVICES_READ"
+  | "SERVICES_WRITE"
+  | "BUDGETS_READ"
+  | "BUDGETS_WRITE"
+  | "SERVICE_ORDERS_READ"
+  | "SERVICE_ORDERS_WRITE"
+  | "FINANCIAL_READ"
+  | "FINANCIAL_WRITE"
+  | "VEHICLE_QUERY"
+  | "NFE_IMPORT"
+  | "USERS_MANAGE";
+
+export interface AuthUser {
+  userId: number;
+  name: string;
+  email: string;
+  role: Role;
+  officeId: number;
+  permissions: Permission[];
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface LoginResponse {
+  token: string;
+  tokenType: string;
+  expiresInSeconds: number;
+  user: AuthUser;
+}
+
+export interface Office {
+  id: number;
+  name: string;
+  cpfCnpj: string;
+}
+
+export interface CreateOfficeDTO {
+  name: string;
+  cpfCnpj: string;
+}
+
+export interface OfficeUser {
+  userId: number;
+  name: string;
+  email: string;
+  role: Role;
+  active: boolean;
+  permissions: Permission[];
+}
+
+export interface CreateOfficeUserDTO {
+  name: string;
+  email: string;
+  password: string;
+  role: Role;
+  permissions: Permission[];
 }
 
 export interface NfeAccessKeyInfo {

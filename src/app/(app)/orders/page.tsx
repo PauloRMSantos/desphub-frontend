@@ -46,6 +46,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { usePageActions } from "@/components/shell/topbar-actions";
+import { useAuth } from "@/components/auth/auth-provider";
 
 interface ItemRow {
   serviceId: number;
@@ -54,6 +55,8 @@ interface ItemRow {
 }
 
 export default function OrdersPage() {
+  const { can } = useAuth();
+  const canWrite = can("SERVICE_ORDERS_WRITE");
   const orders = useResource(getServiceOrders, []);
   const clients = useResource(getClients, []);
   const vehicles = useResource(getVehicles, []);
@@ -64,18 +67,19 @@ export default function OrdersPage() {
   const [query, setQuery] = useState("");
 
   usePageActions(
-    () => (
-      <Button
-        onClick={() => {
-          setEditing(null);
-          setView("form");
-        }}
-      >
-        <Plus size={17} />
-        Nova OS
-      </Button>
-    ),
-    [],
+    () =>
+      canWrite ? (
+        <Button
+          onClick={() => {
+            setEditing(null);
+            setView("form");
+          }}
+        >
+          <Plus size={17} />
+          Nova OS
+        </Button>
+      ) : null,
+    [canWrite],
   );
 
   const clientName = (id: number) =>
@@ -146,16 +150,18 @@ export default function OrdersPage() {
           title="Nenhuma ordem de serviço"
           description="Crie a primeira OS para começar."
           action={
-            <Button
-              size="sm"
-              onClick={() => {
-                setEditing(null);
-                setView("form");
-              }}
-            >
-              <Plus size={15} />
-              Nova OS
-            </Button>
+            canWrite ? (
+              <Button
+                size="sm"
+                onClick={() => {
+                  setEditing(null);
+                  setView("form");
+                }}
+              >
+                <Plus size={15} />
+                Nova OS
+              </Button>
+            ) : undefined
           }
         />
       ) : (

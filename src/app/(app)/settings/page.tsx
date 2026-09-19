@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Plus, Check, Pencil, Trash2, Sun, Moon, Wrench, X } from "lucide-react";
 import { useResource } from "@/hooks/use-resource";
+import { useAuth } from "@/components/auth/auth-provider";
 import {
   getServices,
   createService,
@@ -74,6 +75,8 @@ function Appearance() {
 }
 
 function ServicesManager() {
+  const { can } = useAuth();
+  const canWrite = can("SERVICES_WRITE");
   const services = useResource(getServices, []);
   const [editing, setEditing] = useState<Service | null>(null);
   const [name, setName] = useState("");
@@ -131,6 +134,7 @@ function ServicesManager() {
         <CardTitle>Catálogo de serviços</CardTitle>
       </CardHeader>
 
+      {canWrite && (
       <CardBody className="border-b border-border">
         <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-[1fr_160px_auto]">
           <Field>
@@ -175,6 +179,7 @@ function ServicesManager() {
           <div className="mt-2 text-[12px] font-medium text-danger">{error}</div>
         )}
       </CardBody>
+      )}
 
       {services.loading ? (
         <div className="space-y-3 p-5">
@@ -216,6 +221,7 @@ function ServicesManager() {
                   {brl(s.price)}
                 </td>
                 <td>
+                  {canWrite && (
                   <div className="flex justify-end gap-1">
                     <button
                       type="button"
@@ -234,6 +240,7 @@ function ServicesManager() {
                       <Trash2 size={15} />
                     </button>
                   </div>
+                  )}
                 </td>
               </tr>
             ))}
