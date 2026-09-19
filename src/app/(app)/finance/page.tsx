@@ -42,10 +42,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { BarChart } from "@/components/charts/bar-chart";
 import { usePageActions } from "@/components/shell/topbar-actions";
+import { useAuth } from "@/components/auth/auth-provider";
 
 const STATUS_LIST: BudgetStatus[] = ["PENDENTE", "APROVADO", "RECUSADO"];
 
 export default function FinancePage() {
+  const { can } = useAuth();
+  const canWrite = can("BUDGETS_WRITE");
   const budgets = useResource(getBudgets, []);
   const clients = useResource(getClients, []);
   const services = useResource(getServices, []);
@@ -53,18 +56,19 @@ export default function FinancePage() {
   const [creating, setCreating] = useState(false);
 
   usePageActions(
-    () => (
-      <Button
-        onClick={() => {
-          setTab("budgets");
-          setCreating(true);
-        }}
-      >
-        <Plus size={17} />
-        Novo orçamento
-      </Button>
-    ),
-    [],
+    () =>
+      canWrite ? (
+        <Button
+          onClick={() => {
+            setTab("budgets");
+            setCreating(true);
+          }}
+        >
+          <Plus size={17} />
+          Novo orçamento
+        </Button>
+      ) : null,
+    [canWrite],
   );
 
   const clientName = (id: number) =>
@@ -108,6 +112,7 @@ export default function FinancePage() {
           budgets={list}
           loading={budgets.loading}
           error={!!budgets.error}
+          canWrite={canWrite}
           clientName={clientName}
           onReload={budgets.reload}
           onUpdateStatus={async (b, status) => {
@@ -214,6 +219,7 @@ function BudgetList({
   budgets,
   loading,
   error,
+  canWrite,
   clientName,
   onReload,
   onUpdateStatus,
@@ -221,6 +227,7 @@ function BudgetList({
   budgets: Budget[];
   loading: boolean;
   error: boolean;
+  canWrite: boolean;
   clientName: (id: number) => string;
   onReload: () => void;
   onUpdateStatus: (b: Budget, status: BudgetStatus) => Promise<void>;
@@ -294,6 +301,11 @@ function BudgetList({
                   {b.items.length === 1 ? "item" : "itens"}
                 </td>
                 <td>
+                  {!canWrite ? (
+                    <Badge tone={BUDGET_STATUS[b.status].tone}>
+                      {BUDGET_STATUS[b.status].label}
+                    </Badge>
+                  ) : (
                   <div className="relative">
                     <button
                       type="button"
@@ -333,6 +345,7 @@ function BudgetList({
                       </div>
                     )}
                   </div>
+                  )}
                 </td>
                 <td className="text-right font-mono font-semibold">
                   {brl(b.totalPrice)}

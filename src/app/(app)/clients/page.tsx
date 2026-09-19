@@ -13,6 +13,7 @@ import {
   Users,
 } from "lucide-react";
 import { useResource } from "@/hooks/use-resource";
+import { useAuth } from "@/components/auth/auth-provider";
 import {
   getClients,
   getVehicles,
@@ -37,6 +38,8 @@ import { usePageActions } from "@/components/shell/topbar-actions";
 type Mode = "view" | "edit" | "new";
 
 export default function ClientsPage() {
+  const { can } = useAuth();
+  const canWrite = can("CLIENTS_WRITE");
   const clients = useResource(getClients, []);
   const vehicles = useResource(getVehicles, []);
   const [query, setQuery] = useState("");
@@ -44,18 +47,19 @@ export default function ClientsPage() {
   const [mode, setMode] = useState<Mode>("view");
 
   usePageActions(
-    () => (
-      <Button
-        onClick={() => {
-          setSelectedId(null);
-          setMode("new");
-        }}
-      >
-        <Plus size={17} />
-        Novo cliente
-      </Button>
-    ),
-    [],
+    () =>
+      canWrite ? (
+        <Button
+          onClick={() => {
+            setSelectedId(null);
+            setMode("new");
+          }}
+        >
+          <Plus size={17} />
+          Novo cliente
+        </Button>
+      ) : null,
+    [canWrite],
   );
 
   const list = clients.data ?? [];
@@ -210,24 +214,26 @@ export default function ClientsPage() {
         <Card className="xl:sticky xl:top-[92px]">
           <CardHeader>
             <CardTitle>Ficha do cliente</CardTitle>
-            <span className="ml-auto flex gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setMode("edit")}
-              >
-                <Pencil size={15} />
-                Editar
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleDelete}
-                className="text-danger hover:bg-danger-bg"
-              >
-                <Trash2 size={15} />
-              </Button>
-            </span>
+            {canWrite && (
+              <span className="ml-auto flex gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setMode("edit")}
+                >
+                  <Pencil size={15} />
+                  Editar
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleDelete}
+                  className="text-danger hover:bg-danger-bg"
+                >
+                  <Trash2 size={15} />
+                </Button>
+              </span>
+            )}
           </CardHeader>
           <CardBody>
             <div className="mb-2 flex items-center gap-4">

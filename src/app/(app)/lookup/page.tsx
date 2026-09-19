@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { queryVehicle } from "@/lib/data";
 import type { VehicleQueryResponse } from "@/types";
-import { formatPlate, brl, formatDateTimeBR } from "@/lib/format";
+import { formatPlate, brl, brlDecimal, formatDateTimeBR } from "@/lib/format";
 import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -308,7 +308,7 @@ function LookupResult({ data }: { data: VehicleQueryResponse }) {
                       {d.type} {d.year ? `(${d.year})` : ""}
                     </span>
                     <span className="font-mono font-semibold">
-                      {brl(d.amount)}
+                      {brlDecimal(d.amount)}
                     </span>
                   </li>
                 ))}
@@ -321,6 +321,42 @@ function LookupResult({ data }: { data: VehicleQueryResponse }) {
             )}
           </div>
         </div>
+
+        {data.taxes?.length > 0 && (
+          <Section title="Histórico de IPVA">
+            <div className="overflow-x-auto">
+              <table className="w-full text-[13px]">
+                <thead>
+                  <tr className="text-left text-text-3">
+                    <th className="py-1.5 font-semibold">Ano</th>
+                    <th className="py-1.5 font-semibold">Situação</th>
+                    <th className="py-1.5 text-right font-semibold">Valor</th>
+                    <th className="py-1.5 font-semibold">Vencimento</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.taxes.map((t, i) => (
+                    <tr key={i} className="border-t border-border">
+                      <td className="py-2 font-mono">{t.year}</td>
+                      <td className="py-2">
+                        <span className="flex items-center gap-2">
+                          {t.status}
+                          {t.activeDebt && (
+                            <Badge tone="danger">Dívida ativa</Badge>
+                          )}
+                        </span>
+                      </td>
+                      <td className="py-2 text-right font-mono">
+                        {brlDecimal(t.amount)}
+                      </td>
+                      <td className="py-2 text-text-2">{t.dueDate || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Section>
+        )}
 
         {data.errors?.length > 0 && (
           <div className="mt-4 rounded-lg border border-tint-info-border bg-tint-warn p-3.5">

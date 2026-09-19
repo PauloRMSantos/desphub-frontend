@@ -13,6 +13,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { useResource } from "@/hooks/use-resource";
+import { useAuth } from "@/components/auth/auth-provider";
 import {
   getVehicles,
   getClients,
@@ -49,19 +50,23 @@ const emptyForm: CreateVehicleDTO = {
 };
 
 export default function VehiclesPage() {
+  const { can } = useAuth();
+  const canWrite = can("VEHICLES_WRITE");
+  const canImport = can("NFE_IMPORT");
   const vehicles = useResource(getVehicles, []);
   const clients = useResource(getClients, []);
   const [view, setView] = useState<View>("list");
   const [query, setQuery] = useState("");
 
   usePageActions(
-    () => (
-      <Button onClick={() => setView("new")}>
-        <Plus size={17} />
-        Novo veículo
-      </Button>
-    ),
-    [],
+    () =>
+      canWrite ? (
+        <Button onClick={() => setView("new")}>
+          <Plus size={17} />
+          Novo veículo
+        </Button>
+      ) : null,
+    [canWrite],
   );
 
   const clientName = (id: number | null) =>
@@ -86,6 +91,7 @@ export default function VehiclesPage() {
     return (
       <VehicleForm
         clients={clients.data ?? []}
+        canImport={canImport}
         onDone={() => {
           vehicles.reload();
           setView("list");
@@ -129,10 +135,12 @@ export default function VehiclesPage() {
           title="Nenhum veículo"
           description="Cadastre o primeiro veículo para começar."
           action={
-            <Button size="sm" onClick={() => setView("new")}>
-              <Plus size={15} />
-              Novo veículo
-            </Button>
+            canWrite ? (
+              <Button size="sm" onClick={() => setView("new")}>
+                <Plus size={15} />
+                Novo veículo
+              </Button>
+            ) : undefined
           }
         />
       ) : (
@@ -180,10 +188,12 @@ export default function VehiclesPage() {
 
 function VehicleForm({
   clients,
+  canImport,
   onDone,
   onCancel,
 }: {
   clients: { id: number; name: string }[];
+  canImport: boolean;
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -267,37 +277,39 @@ function VehicleForm({
           <CardTitle>Cadastrar veículo</CardTitle>
         </CardHeader>
         <CardBody className="flex flex-col gap-5">
-          <Field>
-            <Label>Tipo de cadastro</Label>
-            <div className="inline-flex gap-[5px] rounded-pill bg-track p-[5px]">
-              <button
-                type="button"
-                onClick={() => setMode("plate")}
-                className={
-                  "flex items-center gap-[7px] rounded-pill px-[18px] py-2.5 text-[13.5px] font-semibold transition-all " +
-                  (plateMode
-                    ? "bg-card text-text-1 shadow-raise [&_svg]:text-orange"
-                    : "text-text-2 hover:text-text-1")
-                }
-              >
-                <Car size={16} />
-                Manual
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("zeroKm")}
-                className={
-                  "flex items-center gap-[7px] rounded-pill px-[18px] py-2.5 text-[13.5px] font-semibold transition-all " +
-                  (!plateMode
-                    ? "bg-card text-text-1 shadow-raise [&_svg]:text-orange"
-                    : "text-text-2 hover:text-text-1")
-                }
-              >
-                <ScanLine size={16} />
-                Importar da NF-e
-              </button>
-            </div>
-          </Field>
+          {canImport && (
+            <Field>
+              <Label>Tipo de cadastro</Label>
+              <div className="inline-flex gap-[5px] rounded-pill bg-track p-[5px]">
+                <button
+                  type="button"
+                  onClick={() => setMode("plate")}
+                  className={
+                    "flex items-center gap-[7px] rounded-pill px-[18px] py-2.5 text-[13.5px] font-semibold transition-all " +
+                    (plateMode
+                      ? "bg-card text-text-1 shadow-raise [&_svg]:text-orange"
+                      : "text-text-2 hover:text-text-1")
+                  }
+                >
+                  <Car size={16} />
+                  Manual
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode("zeroKm")}
+                  className={
+                    "flex items-center gap-[7px] rounded-pill px-[18px] py-2.5 text-[13.5px] font-semibold transition-all " +
+                    (!plateMode
+                      ? "bg-card text-text-1 shadow-raise [&_svg]:text-orange"
+                      : "text-text-2 hover:text-text-1")
+                  }
+                >
+                  <ScanLine size={16} />
+                  Importar da NF-e
+                </button>
+              </div>
+            </Field>
+          )}
 
           {!plateMode && (
             <div className="rounded-lg border border-tint-info-border bg-tint-info p-[18px]">

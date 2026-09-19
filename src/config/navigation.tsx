@@ -6,13 +6,18 @@ import {
   FileText,
   Wallet,
   Settings,
+  UserCog,
+  Building2,
   type LucideIcon,
 } from "lucide-react";
+import type { Permission } from "@/types";
 
 export interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
+  permission?: Permission;
+  adminOnly?: boolean;
 }
 
 export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
@@ -20,16 +25,55 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: "Menu",
     items: [
       { href: "/", label: "Dashboard", icon: LayoutDashboard },
-      { href: "/clients", label: "Clientes", icon: Users },
-      { href: "/vehicles", label: "Veículos", icon: Car },
-      { href: "/lookup", label: "Consulta de Veículo", icon: CarFront },
-      { href: "/orders", label: "Ordens de Serviço", icon: FileText },
-      { href: "/finance", label: "Financeiro", icon: Wallet },
+      {
+        href: "/clients",
+        label: "Clientes",
+        icon: Users,
+        permission: "CLIENTS_READ",
+      },
+      {
+        href: "/vehicles",
+        label: "Veículos",
+        icon: Car,
+        permission: "VEHICLES_READ",
+      },
+      {
+        href: "/lookup",
+        label: "Consulta de Veículo",
+        icon: CarFront,
+        permission: "VEHICLE_QUERY",
+      },
+      {
+        href: "/orders",
+        label: "Ordens de Serviço",
+        icon: FileText,
+        permission: "SERVICE_ORDERS_READ",
+      },
+      {
+        href: "/finance",
+        label: "Financeiro",
+        icon: Wallet,
+        permission: "BUDGETS_READ",
+      },
     ],
   },
   {
     label: "Geral",
-    items: [{ href: "/settings", label: "Configurações", icon: Settings }],
+    items: [
+      { href: "/settings", label: "Configurações", icon: Settings },
+      {
+        href: "/users",
+        label: "Usuários",
+        icon: UserCog,
+        permission: "USERS_MANAGE",
+      },
+      {
+        href: "/offices",
+        label: "Escritórios",
+        icon: Building2,
+        adminOnly: true,
+      },
+    ],
   },
 ];
 
@@ -74,6 +118,16 @@ export const PAGE_META: Record<string, PageMeta> = {
     title: "Configurações",
     subtitle: "Preferências do sistema e da conta.",
     breadcrumb: ["Sistema", "Configurações"],
+  },
+  "/users": {
+    title: "Usuários",
+    subtitle: "Gerencie os usuários e permissões do escritório.",
+    breadcrumb: ["Sistema", "Usuários"],
+  },
+  "/offices": {
+    title: "Escritórios",
+    subtitle: "Cadastro e gestão de escritórios.",
+    breadcrumb: ["Sistema", "Escritórios"],
   },
 };
 
