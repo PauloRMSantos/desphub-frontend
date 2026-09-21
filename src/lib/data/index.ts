@@ -36,6 +36,7 @@ export {
   deleteBudget,
 } from "./budgets";
 export { login, getMe, logout } from "./auth";
+export { getGovbrSession, issuePairingToken } from "./rpa";
 export {
   getOffices,
   getOffice,

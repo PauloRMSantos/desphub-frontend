@@ -251,6 +251,15 @@ export interface LoginResponse {
   user: AuthUser;
 }
 
+export interface GovbrSessionState {
+  connected: boolean;
+  expiresAt: string | null;
+}
+
+export interface PairingTokenResponse {
+  pairingToken: string;
+}
+
 export interface Office {
   id: number;
   name: string;

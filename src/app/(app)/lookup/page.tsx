@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePageActions } from "@/components/shell/topbar-actions";
+import { GovbrConnection } from "@/components/lookup/govbr-connection";
 
 type Phase = "idle" | "loading" | "done" | "error";
 
@@ -69,6 +70,10 @@ export default function LookupPage() {
       className="fade-in mx-auto"
       style={{ maxWidth: wide ? 940 : 720 }}
     >
+      <div className="mb-4">
+        <GovbrConnection />
+      </div>
+
       <Card className="overflow-hidden">
         <div className="bg-[linear-gradient(135deg,#0B1929,#10355c)] px-7 py-6 text-white">
           <div className="flex items-center gap-3">
