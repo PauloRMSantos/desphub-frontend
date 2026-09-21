@@ -9,10 +9,11 @@ export function brlNumber(value: number): string {
   });
 }
 
-export function brlDecimal(value: string | null | undefined): string {
-  if (!value) return "R$ 0,00";
-  const neg = value.trim().startsWith("-");
-  const clean = value.replace(/[^0-9.]/g, "");
+export function brlDecimal(value: string | number | null | undefined): string {
+  if (value === null || value === undefined || value === "") return "R$ 0,00";
+  const raw = String(value);
+  const neg = raw.trim().startsWith("-");
+  const clean = raw.replace(/[^0-9.]/g, "");
   const [intPart, decRaw = ""] = clean.split(".");
   const dec = (decRaw + "00").slice(0, 2);
   const intFmt = (intPart || "0").replace(/\B(?=(\d{3})+(?!\d))/g, ".");
