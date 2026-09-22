@@ -1,0 +1,36 @@
+# DespHub — orquestração do FRONT (Next.js) na VPS.
+#
+# O front entra na desphub-net e fala com o backend por http://desphub-backend:8080
+# (proxy /api server-side do Next). Publica só em 127.0.0.1 para o nginx do host
+# (app.desphub.com → 127.0.0.1:3000). Sem porta pública direta.
+#
+# Pré-requisito: a rede desphub-net já deve existir (compose do RPA/backend) ou:
+#   docker network create desphub-net
+#
+# Uso (na VPS, a partir da raiz do repo do front):
+#   docker compose -f deploy/docker-compose.yml up -d --build
+#   docker compose -f deploy/docker-compose.yml logs -f desphub-front
+
+name: desphub-front
+
+services:
+  desphub-front:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        # Backend interno (nome de serviço na desphub-net). Inclui /api porque
+        # o backend serve as rotas sob /api.
+        BACKEND_URL: ${BACKEND_URL:-http://desphub-backend:8080/api}
+    image: desphub-front:latest
+    container_name: desphub-front
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${FRONT_PORT:-3000}:3000"
+    networks:
+      - desphub-net
+
+networks:
+  desphub-net:
+    external: true
+    name: desphub-net
