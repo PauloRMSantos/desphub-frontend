@@ -58,3 +58,10 @@ export function setOfficeUserActive(
 export function deleteOfficeUser(officeId: number, userId: number) {
   return apiSend<void>("DELETE", `/offices/${officeId}/users/${userId}`);
 }
+
+export function resetOfficeUserPassword(officeId: number, userId: number) {
+  return apiSend<void>(
+    "POST",
+    `/offices/${officeId}/users/${userId}/password-reset`,
+  );
+}

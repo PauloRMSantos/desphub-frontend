@@ -10,6 +10,7 @@ import {
   Power,
   ChevronLeft,
   Ban,
+  MailPen,
 } from "lucide-react";
 import { useResource } from "@/hooks/use-resource";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -35,6 +36,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { usePageActions } from "@/components/shell/topbar-actions";
 import { cn } from "@/lib/utils";
+import { resetOfficeUserPassword } from "@/lib/data/offices";
 
 const ROLE_LABEL: Record<Role, string> = {
   DESPHUB_ADMIN: "Administrador",
@@ -129,6 +131,11 @@ export default function UsersPage() {
     if (!window.confirm(`Excluir o usuário "${u.name}"?`)) return;
     await deleteOfficeUser(officeId, u.id);
     users.reload();
+  }
+
+  async function resetPassword(u: OfficeUser) {
+    await resetOfficeUserPassword(officeId, u.id);
+    alert(`Foi enviada uma solicitação de redefinição de senha para o e-mail ${u.email}. Confira a caixa de spam`);
   }
 
   const list = users.data ?? [];
@@ -239,6 +246,15 @@ export default function UsersPage() {
                       className="grid h-8 w-8 place-items-center rounded-[10px] text-text-3 hover:bg-surface-soft hover:text-text-1"
                     >
                       <Power size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Redefinir senha"
+                      title="Redefinir senha"
+                      onClick={() => resetPassword(u)}
+                      className="grid h-8 w-8 place-items-center rounded-[10px] text-text-3 hover:bg-surface-soft hover:text-text-1"
+                      >
+                      <MailPen size={16} />
                     </button>
                     <button
                       type="button"
