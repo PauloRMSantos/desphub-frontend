@@ -14,6 +14,7 @@ import {
 import { useResource } from "@/hooks/use-resource";
 import { useAuth } from "@/components/auth/auth-provider";
 import {
+  getOffices,
   getOfficeUsers,
   createOfficeUser,
   updateOfficeUserPermissions,
@@ -28,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Field, Label, ErrorText } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
@@ -44,10 +46,16 @@ type View = "list" | "new" | "perms";
 
 export default function UsersPage() {
   const { user, can, isAdmin } = useAuth();
-  const officeId = user?.officeId ?? 0;
   const allowed = can("USERS_MANAGE");
   const newRole: Role = isAdmin ? "OFFICE_OWNER" : "EMPLOYEE";
 
+  const [selectedOfficeId, setSelectedOfficeId] = useState<number | null>(null);
+  const officeId = isAdmin ? (selectedOfficeId ?? 0) : (user?.officeId ?? 0);
+
+  const offices = useResource(
+    () => (isAdmin ? getOffices() : Promise.resolve([])),
+    [isAdmin],
+  );
   const users = useResource(
     () => (allowed && officeId ? getOfficeUsers(officeId) : Promise.resolve([])),
     [allowed, officeId],
@@ -59,6 +67,7 @@ export default function UsersPage() {
     () =>
       allowed ? (
         <Button
+          disabled={isAdmin && !officeId}
           onClick={() => {
             setSelected(null);
             setView("new");
@@ -68,7 +77,7 @@ export default function UsersPage() {
           Novo usuário
         </Button>
       ) : null,
-    [allowed],
+    [allowed, isAdmin, officeId],
   );
 
   if (!allowed) {
@@ -126,7 +135,38 @@ export default function UsersPage() {
 
   return (
     <Card className="fade-in">
-      {users.loading ? (
+      {isAdmin && (
+        <div className="border-b border-border p-4">
+          <div className="max-w-sm">
+            <Label>Escritório</Label>
+            <div className="mt-1.5">
+              <Select
+                value={selectedOfficeId ?? ""}
+                onChange={(e) =>
+                  setSelectedOfficeId(
+                    e.target.value ? Number(e.target.value) : null,
+                  )
+                }
+              >
+                <option value="">Selecione o escritório…</option>
+                {(offices.data ?? []).map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isAdmin && !officeId ? (
+        <EmptyState
+          icon={<UserCog size={30} />}
+          title="Selecione um escritório"
+          description="Escolha um escritório acima para ver e gerenciar seus usuários."
+        />
+      ) : users.loading ? (
         <div className="space-y-3 p-5">
           {Array.from({ length: 5 }).map((_, i) => (
             <Skeleton key={i} className="h-10 w-full" />

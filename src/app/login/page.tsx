@@ -20,7 +20,8 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!loading && user) router.replace("/");
+    if (!loading && user)
+      router.replace(user.role === "DESPHUB_ADMIN" ? "/offices" : "/");
   }, [loading, user, router]);
 
   async function submit(e: React.FormEvent) {
@@ -33,7 +34,6 @@ export default function LoginPage() {
     setError(null);
     try {
       await login(email.trim(), password);
-      router.replace("/");
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         setError("E-mail ou senha inválidos.");
