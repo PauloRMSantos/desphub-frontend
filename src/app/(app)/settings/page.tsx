@@ -24,10 +24,11 @@ import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 export default function SettingsPage() {
+  const { isAdmin } = useAuth();
   return (
     <div className="fade-in flex max-w-4xl flex-col gap-4">
       <Appearance />
-      <ServicesManager />
+      {!isAdmin && <ServicesManager />}
     </div>
   );
 }

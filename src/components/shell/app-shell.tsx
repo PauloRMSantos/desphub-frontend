@@ -6,6 +6,7 @@ import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import { TopbarActionsProvider } from "./topbar-actions";
 import { useAuth } from "@/components/auth/auth-provider";
+import { isOfficeScopedPath } from "@/config/navigation";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
@@ -13,7 +14,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-  const { user, loading } = useAuth();
+  const { user, loading, isAdmin } = useAuth();
 
   useEffect(() => {
     setOpen(false);
@@ -23,7 +24,12 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (!loading && !user) router.replace("/login");
   }, [loading, user, router]);
 
-  if (loading || !user) {
+  useEffect(() => {
+    if (!loading && user && isAdmin && isOfficeScopedPath(pathname))
+      router.replace("/offices");
+  }, [loading, user, isAdmin, pathname, router]);
+
+  if (loading || !user || (isAdmin && isOfficeScopedPath(pathname))) {
     return (
       <div className="grid h-dvh place-items-center bg-app">
         <Spinner size={28} />

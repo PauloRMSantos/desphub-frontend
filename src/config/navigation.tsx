@@ -18,42 +18,53 @@ export interface NavItem {
   icon: LucideIcon;
   permission?: Permission;
   adminOnly?: boolean;
+  officeScoped?: boolean;
 }
 
 export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "Menu",
     items: [
-      { href: "/", label: "Dashboard", icon: LayoutDashboard },
+      {
+        href: "/",
+        label: "Dashboard",
+        icon: LayoutDashboard,
+        officeScoped: true,
+      },
       {
         href: "/clients",
         label: "Clientes",
         icon: Users,
         permission: "CLIENTS_READ",
+        officeScoped: true,
       },
       {
         href: "/vehicles",
         label: "Veículos",
         icon: Car,
         permission: "VEHICLES_READ",
+        officeScoped: true,
       },
       {
         href: "/lookup",
         label: "Consulta de Veículo",
         icon: CarFront,
         permission: "VEHICLE_QUERY",
+        officeScoped: true,
       },
       {
         href: "/orders",
         label: "Ordens de Serviço",
         icon: FileText,
         permission: "SERVICE_ORDERS_READ",
+        officeScoped: true,
       },
       {
         href: "/finance",
         label: "Financeiro",
         icon: Wallet,
         permission: "BUDGETS_READ",
+        officeScoped: true,
       },
     ],
   },
@@ -130,6 +141,16 @@ export const PAGE_META: Record<string, PageMeta> = {
     breadcrumb: ["Sistema", "Escritórios"],
   },
 };
+
+export function isOfficeScopedPath(pathname: string): boolean {
+  return NAV_GROUPS.flatMap((g) => g.items)
+    .filter((i) => i.officeScoped)
+    .some((i) =>
+      i.href === "/"
+        ? pathname === "/"
+        : pathname === i.href || pathname.startsWith(i.href + "/"),
+    );
+}
 
 export function metaForPath(pathname: string): PageMeta {
   if (PAGE_META[pathname]) return PAGE_META[pathname];

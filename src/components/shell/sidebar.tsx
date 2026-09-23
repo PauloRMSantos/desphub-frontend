@@ -28,6 +28,7 @@ export function Sidebar() {
 
   const visible = (item: NavItem) => {
     if (item.adminOnly) return isAdmin;
+    if (item.officeScoped && isAdmin) return false;
     if (item.permission) return can(item.permission);
     return true;
   };
