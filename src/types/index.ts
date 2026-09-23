@@ -272,7 +272,7 @@ export interface CreateOfficeDTO {
 }
 
 export interface OfficeUser {
-  userId: number;
+  id: number;
   name: string;
   email: string;
   role: Role;

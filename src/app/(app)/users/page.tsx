@@ -121,13 +121,13 @@ export default function UsersPage() {
   }
 
   async function toggleActive(u: OfficeUser) {
-    await setOfficeUserActive(officeId, u.userId, !u.active);
+    await setOfficeUserActive(officeId, u.id, !u.active);
     users.reload();
   }
 
   async function remove(u: OfficeUser) {
     if (!window.confirm(`Excluir o usuário "${u.name}"?`)) return;
-    await deleteOfficeUser(officeId, u.userId);
+    await deleteOfficeUser(officeId, u.id);
     users.reload();
   }
 
@@ -202,7 +202,7 @@ export default function UsersPage() {
           </thead>
           <tbody>
             {list.map((u) => (
-              <tr key={u.userId}>
+              <tr key={u.id}>
                 <td className="font-semibold">{u.name}</td>
                 <td className="text-text-2">{u.email}</td>
                 <td>
@@ -409,7 +409,7 @@ function PermissionsEditor({
     setSaving(true);
     setError(null);
     try {
-      await updateOfficeUserPermissions(officeId, user.userId, permissions);
+      await updateOfficeUserPermissions(officeId, user.id, permissions);
       onDone();
     } catch {
       setError("Não foi possível salvar as permissões.");
