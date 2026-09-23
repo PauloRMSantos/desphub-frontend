@@ -28,6 +28,8 @@ import { SearchInput } from "@/components/ui/search-input";
 import { Button } from "@/components/ui/button";
 import { Field, Label, ErrorText } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { PhoneInput, DocInput } from "@/components/ui/masked-input";
+import { maskCpfCnpj, maskPhone, onlyDigits } from "@/lib/format";
 import { Avatar, initials } from "@/components/ui/avatar";
 import { PlateTag } from "@/components/ui/plate-tag";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -65,11 +67,15 @@ export default function ClientsPage() {
   const list = clients.data ?? [];
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const qDigits = onlyDigits(query);
     if (!q) return list;
     return list.filter(
       (c) =>
         c.name.toLowerCase().includes(q) ||
-        (c.cpfCnpj ?? "").toLowerCase().includes(q),
+        (c.cpfCnpj ?? "").toLowerCase().includes(q) ||
+        (qDigits.length > 0 &&
+          onlyDigits(c.cpfCnpj ?? "").includes(qDigits)) ||
+        (qDigits.length > 0 && onlyDigits(c.telephone).includes(qDigits)),
     );
   }, [list, query]);
 
@@ -183,10 +189,10 @@ export default function ClientsPage() {
                       </div>
                     </td>
                     <td className="font-mono text-[12.5px] text-text-2">
-                      {c.cpfCnpj || "—"}
+                      {c.cpfCnpj ? maskCpfCnpj(c.cpfCnpj) : "—"}
                     </td>
                     <td className="whitespace-nowrap text-text-2">
-                      {c.telephone}
+                      {maskPhone(c.telephone)}
                     </td>
                   </tr>
                 ))}
@@ -247,13 +253,13 @@ export default function ClientsPage() {
 
             <InfoRow icon={<FileText size={17} />} label="CPF / CNPJ">
               {selected.cpfCnpj ? (
-                <span className="font-mono">{selected.cpfCnpj}</span>
+                <span className="font-mono">{maskCpfCnpj(selected.cpfCnpj)}</span>
               ) : (
                 <span className="text-text-3">Não informado</span>
               )}
             </InfoRow>
             <InfoRow icon={<Phone size={17} />} label="Telefone">
-              {selected.telephone}
+              {maskPhone(selected.telephone)}
             </InfoRow>
             <InfoRow icon={<MapPin size={17} />} label="Endereço">
               {selected.address || (
@@ -398,9 +404,9 @@ function ClientForm({
       <div className="grid grid-cols-2 gap-4">
         <Field>
           <Label required>Telefone</Label>
-          <Input
+          <PhoneInput
             value={form.telephone}
-            onChange={set("telephone")}
+            onValueChange={(v) => setForm((f) => ({ ...f, telephone: v }))}
             placeholder="(00) 00000-0000"
             state={errPhone ? "error" : "default"}
           />
@@ -408,10 +414,10 @@ function ClientForm({
         </Field>
         <Field>
           <Label>CPF / CNPJ</Label>
-          <Input
+          <DocInput
             mono
             value={form.cpfCnpj ?? ""}
-            onChange={set("cpfCnpj")}
+            onValueChange={(v) => setForm((f) => ({ ...f, cpfCnpj: v }))}
             placeholder="Opcional"
           />
         </Field>

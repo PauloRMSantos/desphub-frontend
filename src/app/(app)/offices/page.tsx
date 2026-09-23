@@ -11,6 +11,8 @@ import { Table } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Field, Label, ErrorText } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { DocInput } from "@/components/ui/masked-input";
+import { maskCpfCnpj } from "@/lib/format";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
@@ -106,7 +108,7 @@ export default function OfficesPage() {
               <tr key={o.id}>
                 <td className="font-semibold">{o.name}</td>
                 <td className="font-mono text-[12.5px] text-text-2">
-                  {o.cpfCnpj || "—"}
+                  {o.cpfCnpj ? maskCpfCnpj(o.cpfCnpj) : "—"}
                 </td>
                 <td>
                   <div className="flex justify-end">
@@ -187,10 +189,10 @@ function OfficeForm({
           </Field>
           <Field>
             <Label required>CPF / CNPJ</Label>
-            <Input
+            <DocInput
               mono
               value={cpfCnpj}
-              onChange={(e) => setCpfCnpj(e.target.value)}
+              onValueChange={setCpfCnpj}
               state={errDoc ? "error" : "default"}
               placeholder="CPF (autônomo) ou CNPJ (empresa)"
             />

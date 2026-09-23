@@ -33,7 +33,7 @@ import type {
   CreateServiceOrderItemDTO,
 } from "@/types";
 import { ORDER_STATUS, ORDER_FLOW } from "@/config/status";
-import { brl } from "@/lib/format";
+import { brl, maskCpfCnpj, maskPhone } from "@/lib/format";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table } from "@/components/ui/table";
 import { SearchInput } from "@/components/ui/search-input";
@@ -805,8 +805,8 @@ function PrintSheet({
                 title="Cliente"
                 rows={[
                   ["Nome", client?.name ?? "—"],
-                  ["CPF/CNPJ", client?.cpfCnpj || "—"],
-                  ["Telefone", client?.telephone ?? "—"],
+                  ["CPF/CNPJ", client?.cpfCnpj ? maskCpfCnpj(client.cpfCnpj) : "—"],
+                  ["Telefone", client?.telephone ? maskPhone(client.telephone) : "—"],
                   ["Endereço", client?.address || "—"],
                 ]}
               />
