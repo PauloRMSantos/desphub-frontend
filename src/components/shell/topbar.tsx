@@ -54,14 +54,6 @@ export function Topbar({ onMenu }: { onMenu?: () => void }) {
             className="w-full border-none bg-transparent text-[13.5px] text-text-1 outline-none placeholder:text-text-3"
           />
         </div>
-        <button
-          type="button"
-          aria-label="Notificações"
-          className="relative grid h-[42px] w-[42px] shrink-0 place-items-center rounded-full border border-border bg-card text-text-2 transition-colors hover:border-border-strong hover:text-orange"
-        >
-          <Bell size={19} />
-          <span className="absolute right-2.5 top-[9px] h-[7px] w-[7px] rounded-full border-[1.5px] border-card bg-orange" />
-        </button>
         {actions}
       </div>
     </header>

@@ -35,7 +35,13 @@ export {
   updateBudget,
   deleteBudget,
 } from "./budgets";
-export { login, getMe, logout } from "./auth";
+export {
+  login,
+  getMe,
+  logout,
+  resetPassword,
+  changeOwnPassword,
+} from "./auth";
 export { getGovbrSession, issuePairingToken } from "./rpa";
 export {
   getOffices,
@@ -47,4 +53,5 @@ export {
   updateOfficeUserPermissions,
   setOfficeUserActive,
   deleteOfficeUser,
+  resetOfficeUserPassword,
 } from "./offices";

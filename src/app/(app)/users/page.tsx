@@ -21,6 +21,7 @@ import {
   updateOfficeUserPermissions,
   setOfficeUserActive,
   deleteOfficeUser,
+  resetOfficeUserPassword,
 } from "@/lib/data";
 import type { CreateOfficeUserDTO, OfficeUser, Permission, Role } from "@/types";
 import { PERMISSION_GROUPS } from "@/config/permissions";
@@ -36,7 +37,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { usePageActions } from "@/components/shell/topbar-actions";
 import { cn } from "@/lib/utils";
-import { resetOfficeUserPassword } from "@/lib/data/offices";
 
 const ROLE_LABEL: Record<Role, string> = {
   DESPHUB_ADMIN: "Administrador",
