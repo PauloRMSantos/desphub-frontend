@@ -46,6 +46,12 @@ export function maskCpfCnpj(value: string): string {
   return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
 }
 
+export function maskYearModel(value: string): string {
+  const d = onlyDigits(value).slice(0, 8);
+  if (d.length <= 4) return d;
+  return `${d.slice(0, 4)}/${d.slice(4)}`;
+}
+
 export function formatPlate(raw: string): string {
   return raw
     .toUpperCase()

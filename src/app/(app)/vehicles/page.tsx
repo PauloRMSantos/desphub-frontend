@@ -26,7 +26,7 @@ import {
   importNfeByPdf,
 } from "@/lib/data";
 import type { CreateVehicleDTO, Vehicle } from "@/types";
-import { formatPlate } from "@/lib/format";
+import { formatPlate, maskYearModel } from "@/lib/format";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table } from "@/components/ui/table";
 import { SearchInput } from "@/components/ui/search-input";
@@ -511,8 +511,14 @@ function VehicleForm({
                 <Label required>Ano fab./modelo</Label>
                 <Input
                   mono
+                  inputMode="numeric"
                   value={form.fabricationAndModel}
-                  onChange={set("fabricationAndModel")}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      fabricationAndModel: maskYearModel(e.target.value),
+                    }))
+                  }
                   state={
                     missing("fabricationAndModel")
                       ? "error"
