@@ -10,15 +10,18 @@ import {
   Power,
   ChevronLeft,
   Ban,
+  MailPen,
 } from "lucide-react";
 import { useResource } from "@/hooks/use-resource";
 import { useAuth } from "@/components/auth/auth-provider";
 import {
+  getOffices,
   getOfficeUsers,
   createOfficeUser,
   updateOfficeUserPermissions,
   setOfficeUserActive,
   deleteOfficeUser,
+  resetOfficeUserPassword,
 } from "@/lib/data";
 import type { CreateOfficeUserDTO, OfficeUser, Permission, Role } from "@/types";
 import { PERMISSION_GROUPS } from "@/config/permissions";
@@ -28,10 +31,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Field, Label, ErrorText } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { usePageActions } from "@/components/shell/topbar-actions";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import { cn } from "@/lib/utils";
 
 const ROLE_LABEL: Record<Role, string> = {
@@ -44,10 +49,17 @@ type View = "list" | "new" | "perms";
 
 export default function UsersPage() {
   const { user, can, isAdmin } = useAuth();
-  const officeId = user?.officeId ?? 0;
+  const { confirm, notify } = useConfirm();
   const allowed = can("USERS_MANAGE");
   const newRole: Role = isAdmin ? "OFFICE_OWNER" : "EMPLOYEE";
 
+  const [selectedOfficeId, setSelectedOfficeId] = useState<number | null>(null);
+  const officeId = isAdmin ? (selectedOfficeId ?? 0) : (user?.officeId ?? 0);
+
+  const offices = useResource(
+    () => (isAdmin ? getOffices() : Promise.resolve([])),
+    [isAdmin],
+  );
   const users = useResource(
     () => (allowed && officeId ? getOfficeUsers(officeId) : Promise.resolve([])),
     [allowed, officeId],
@@ -59,6 +71,7 @@ export default function UsersPage() {
     () =>
       allowed ? (
         <Button
+          disabled={isAdmin && !officeId}
           onClick={() => {
             setSelected(null);
             setView("new");
@@ -68,7 +81,7 @@ export default function UsersPage() {
           Novo usuário
         </Button>
       ) : null,
-    [allowed],
+    [allowed, isAdmin, officeId],
   );
 
   if (!allowed) {
@@ -112,21 +125,66 @@ export default function UsersPage() {
   }
 
   async function toggleActive(u: OfficeUser) {
-    await setOfficeUserActive(officeId, u.userId, !u.active);
+    await setOfficeUserActive(officeId, u.id, !u.active);
     users.reload();
   }
 
   async function remove(u: OfficeUser) {
-    if (!window.confirm(`Excluir o usuário "${u.name}"?`)) return;
-    await deleteOfficeUser(officeId, u.userId);
+    const ok = await confirm({
+      title: "Excluir usuário",
+      message: `Excluir o usuário "${u.name}"? Essa ação não pode ser desfeita.`,
+      confirmText: "Excluir",
+      tone: "danger",
+    });
+    if (!ok) return;
+    await deleteOfficeUser(officeId, u.id);
     users.reload();
+  }
+
+  async function resetPassword(u: OfficeUser) {
+    await resetOfficeUserPassword(officeId, u.id);
+    await notify({
+      title: "Redefinição enviada",
+      message: `Foi enviada uma solicitação de redefinição de senha para ${u.email}. Peça para o usuário conferir também a caixa de spam.`,
+    });
   }
 
   const list = users.data ?? [];
 
   return (
     <Card className="fade-in">
-      {users.loading ? (
+      {isAdmin && (
+        <div className="border-b border-border p-4">
+          <div className="max-w-sm">
+            <Label>Escritório</Label>
+            <div className="mt-1.5">
+              <Select
+                value={selectedOfficeId ?? ""}
+                onChange={(e) =>
+                  setSelectedOfficeId(
+                    e.target.value ? Number(e.target.value) : null,
+                  )
+                }
+              >
+                <option value="">Selecione o escritório…</option>
+                {(offices.data ?? []).map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isAdmin && !officeId ? (
+        <EmptyState
+          icon={<UserCog size={30} />}
+          title="Selecione um escritório"
+          description="Escolha um escritório acima para ver e gerenciar seus usuários."
+        />
+      ) : users.loading ? (
         <div className="space-y-3 p-5">
           {Array.from({ length: 5 }).map((_, i) => (
             <Skeleton key={i} className="h-10 w-full" />
@@ -162,7 +220,7 @@ export default function UsersPage() {
           </thead>
           <tbody>
             {list.map((u) => (
-              <tr key={u.userId}>
+              <tr key={u.id}>
                 <td className="font-semibold">{u.name}</td>
                 <td className="text-text-2">{u.email}</td>
                 <td>
@@ -199,6 +257,15 @@ export default function UsersPage() {
                       className="grid h-8 w-8 place-items-center rounded-[10px] text-text-3 hover:bg-surface-soft hover:text-text-1"
                     >
                       <Power size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Redefinir senha"
+                      title="Redefinir senha"
+                      onClick={() => resetPassword(u)}
+                      className="grid h-8 w-8 place-items-center rounded-[10px] text-text-3 hover:bg-surface-soft hover:text-text-1"
+                      >
+                      <MailPen size={16} />
                     </button>
                     <button
                       type="button"
@@ -369,7 +436,7 @@ function PermissionsEditor({
     setSaving(true);
     setError(null);
     try {
-      await updateOfficeUserPermissions(officeId, user.userId, permissions);
+      await updateOfficeUserPermissions(officeId, user.id, permissions);
       onDone();
     } catch {
       setError("Não foi possível salvar as permissões.");

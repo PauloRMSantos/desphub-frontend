@@ -8,6 +8,12 @@ export {
 } from "./card";
 export { Badge, type BadgeTone } from "./badge";
 export { Input, type InputProps, type FieldState } from "./input";
+export {
+  PhoneInput,
+  DocInput,
+  type MaskedInputProps,
+  type MaskedFieldProps,
+} from "./masked-input";
 export { Textarea } from "./textarea";
 export { Select } from "./select";
 export {

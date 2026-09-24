@@ -205,7 +205,7 @@ export default function DashboardPage() {
           <CardBody>
             <div className="mb-1.5 flex items-center justify-between">
               <span className="font-head text-[22px] font-bold text-text-1">
-                Ordens recentes
+                Ordens de Serviço recentes
               </span>
               <Button variant="ghost" size="sm" asChild>
                 <Link href="/orders">
@@ -263,9 +263,9 @@ export default function DashboardPage() {
                 Orçamentos recentes
               </span>
               <Button variant="ghost" size="sm" asChild>
-                <Link href="/finance">
+                <Link href="/budgets">
                   <FileText size={14} />
-                  Financeiro
+                  Orçamentos
                 </Link>
               </Button>
             </div>

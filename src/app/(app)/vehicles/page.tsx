@@ -11,16 +11,21 @@ import {
   ChevronLeft,
   Upload,
   AlertTriangle,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { useResource } from "@/hooks/use-resource";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import {
   getVehicles,
   getClients,
   createVehicle,
+  updateVehicle,
+  deleteVehicle,
   importNfeByPdf,
 } from "@/lib/data";
-import type { CreateVehicleDTO } from "@/types";
+import type { CreateVehicleDTO, Vehicle } from "@/types";
 import { formatPlate } from "@/lib/format";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table } from "@/components/ui/table";
@@ -36,7 +41,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { usePageActions } from "@/components/shell/topbar-actions";
 
-type View = "list" | "new";
+type View = { kind: "list" } | { kind: "new" } | { kind: "edit"; vehicle: Vehicle };
 
 const emptyForm: CreateVehicleDTO = {
   plate: "",
@@ -51,23 +56,37 @@ const emptyForm: CreateVehicleDTO = {
 
 export default function VehiclesPage() {
   const { can } = useAuth();
+  const { confirm } = useConfirm();
   const canWrite = can("VEHICLES_WRITE");
   const canImport = can("NFE_IMPORT");
   const vehicles = useResource(getVehicles, []);
   const clients = useResource(getClients, []);
-  const [view, setView] = useState<View>("list");
+  const [view, setView] = useState<View>({ kind: "list" });
   const [query, setQuery] = useState("");
 
   usePageActions(
     () =>
       canWrite ? (
-        <Button onClick={() => setView("new")}>
+        <Button onClick={() => setView({ kind: "new" })}>
           <Plus size={17} />
           Novo veículo
         </Button>
       ) : null,
     [canWrite],
   );
+
+  async function remove(v: Vehicle) {
+    const label = v.plate || v.model || `#${v.id}`;
+    const ok = await confirm({
+      title: "Excluir veículo",
+      message: `Excluir o veículo "${label}"? Essa ação não pode ser desfeita.`,
+      confirmText: "Excluir",
+      tone: "danger",
+    });
+    if (!ok) return;
+    await deleteVehicle(v.id);
+    vehicles.reload();
+  }
 
   const clientName = (id: number | null) =>
     id == null
@@ -87,16 +106,17 @@ export default function VehiclesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [list, query, clients.data]);
 
-  if (view === "new") {
+  if (view.kind !== "list") {
     return (
       <VehicleForm
+        vehicle={view.kind === "edit" ? view.vehicle : null}
         clients={clients.data ?? []}
         canImport={canImport}
         onDone={() => {
           vehicles.reload();
-          setView("list");
+          setView({ kind: "list" });
         }}
-        onCancel={() => setView("list")}
+        onCancel={() => setView({ kind: "list" })}
       />
     );
   }
@@ -136,7 +156,7 @@ export default function VehiclesPage() {
           description="Cadastre o primeiro veículo para começar."
           action={
             canWrite ? (
-              <Button size="sm" onClick={() => setView("new")}>
+              <Button size="sm" onClick={() => setView({ kind: "new" })}>
                 <Plus size={15} />
                 Novo veículo
               </Button>
@@ -153,6 +173,7 @@ export default function VehiclesPage() {
               <th>Cor</th>
               <th>Proprietário</th>
               <th>RENAVAM</th>
+              {canWrite && <th className="w-20" />}
             </tr>
           </thead>
           <tbody>
@@ -177,6 +198,28 @@ export default function VehiclesPage() {
                 <td className="font-mono text-[12.5px] text-text-2">
                   {v.renavam || "—"}
                 </td>
+                {canWrite && (
+                  <td>
+                    <div className="flex justify-end gap-1">
+                      <button
+                        type="button"
+                        aria-label="Editar"
+                        onClick={() => setView({ kind: "edit", vehicle: v })}
+                        className="grid h-8 w-8 place-items-center rounded-[10px] text-text-3 hover:bg-surface-soft hover:text-text-1"
+                      >
+                        <Pencil size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Excluir"
+                        onClick={() => remove(v)}
+                        className="grid h-8 w-8 place-items-center rounded-[10px] text-text-3 hover:bg-danger-bg hover:text-danger"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -187,18 +230,34 @@ export default function VehiclesPage() {
 }
 
 function VehicleForm({
+  vehicle,
   clients,
   canImport,
   onDone,
   onCancel,
 }: {
+  vehicle: Vehicle | null;
   clients: { id: number; name: string }[];
   canImport: boolean;
   onDone: () => void;
   onCancel: () => void;
 }) {
+  const isEdit = vehicle != null;
   const [mode, setMode] = useState<"plate" | "zeroKm">("plate");
-  const [form, setForm] = useState<CreateVehicleDTO>(emptyForm);
+  const [form, setForm] = useState<CreateVehicleDTO>(
+    vehicle
+      ? {
+          plate: vehicle.plate,
+          brand: vehicle.brand,
+          model: vehicle.model,
+          fabricationAndModel: vehicle.fabricationAndModel,
+          color: vehicle.color,
+          renavam: vehicle.renavam,
+          chassis: vehicle.chassis,
+          clientId: vehicle.clientId,
+        }
+      : emptyForm,
+  );
   const [importing, setImporting] = useState(false);
   const [imported, setImported] = useState(false);
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -242,13 +301,18 @@ function VehicleForm({
     if (required.some((k) => !(form[k] ?? "").toString().trim())) return;
     setSaving(true);
     setError(null);
+    const payload = {
+      ...form,
+      plate: plateMode ? form.plate?.trim() || undefined : undefined,
+      renavam: form.renavam?.trim() || undefined,
+      clientId: form.clientId ?? undefined,
+    };
     try {
-      await createVehicle({
-        ...form,
-        plate: plateMode ? form.plate?.trim() || undefined : undefined,
-        renavam: form.renavam?.trim() || undefined,
-        clientId: form.clientId ?? undefined,
-      });
+      if (vehicle) {
+        await updateVehicle(vehicle.id, payload);
+      } else {
+        await createVehicle(payload);
+      }
       onDone();
     } catch {
       setError("Não foi possível salvar o veículo.");
@@ -274,10 +338,10 @@ function VehicleForm({
       <Card>
         <CardHeader>
           <Car size={20} className="text-link-blue" />
-          <CardTitle>Cadastrar veículo</CardTitle>
+          <CardTitle>{isEdit ? "Editar veículo" : "Cadastrar veículo"}</CardTitle>
         </CardHeader>
         <CardBody className="flex flex-col gap-5">
-          {canImport && (
+          {canImport && !isEdit && (
             <Field>
               <Label>Tipo de cadastro</Label>
               <div className="inline-flex gap-[5px] rounded-pill bg-track p-[5px]">
@@ -504,7 +568,7 @@ function VehicleForm({
             </Button>
             <Button onClick={submit} disabled={saving}>
               {saving ? <Spinner /> : <Check size={16} />}
-              Salvar veículo
+              {isEdit ? "Salvar alterações" : "Salvar veículo"}
             </Button>
           </div>
         </CardBody>

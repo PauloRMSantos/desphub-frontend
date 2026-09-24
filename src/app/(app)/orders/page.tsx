@@ -24,6 +24,7 @@ import {
   updateServiceOrder,
 } from "@/lib/data";
 import type {
+  AuthUser,
   Client,
   Vehicle,
   Service,
@@ -33,7 +34,7 @@ import type {
   CreateServiceOrderItemDTO,
 } from "@/types";
 import { ORDER_STATUS, ORDER_FLOW } from "@/config/status";
-import { brl } from "@/lib/format";
+import { brl, maskCpfCnpj, maskPhone } from "@/lib/format";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table } from "@/components/ui/table";
 import { SearchInput } from "@/components/ui/search-input";
@@ -47,6 +48,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { usePageActions } from "@/components/shell/topbar-actions";
 import { useAuth } from "@/components/auth/auth-provider";
+import { PrintBrand } from "@/components/print/print-brand";
 
 interface ItemRow {
   serviceId: number;
@@ -55,7 +57,7 @@ interface ItemRow {
 }
 
 export default function OrdersPage() {
-  const { can } = useAuth();
+  const { user, can } = useAuth();
   const canWrite = can("SERVICE_ORDERS_WRITE");
   const orders = useResource(getServiceOrders, []);
   const clients = useResource(getClients, []);
@@ -66,6 +68,7 @@ export default function OrdersPage() {
   const [editing, setEditing] = useState<ServiceOrder | null>(null);
   const [query, setQuery] = useState("");
 
+  const authUserName = user?.name ?? "";
   usePageActions(
     () =>
       canWrite ? (
@@ -107,6 +110,7 @@ export default function OrdersPage() {
         vehicles={vehicles.data ?? []}
         services={services.data ?? []}
         budgets={budgets.data ?? []}
+        authUserName={authUserName}
         onDone={() => {
           orders.reload();
           setView("list");
@@ -214,6 +218,7 @@ function OrderForm({
   services,
   budgets,
   onDone,
+  authUserName,
   onCancel,
 }: {
   order: ServiceOrder | null;
@@ -221,6 +226,7 @@ function OrderForm({
   vehicles: Vehicle[];
   services: Service[];
   budgets: Budget[];
+  authUserName: string;
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -643,6 +649,7 @@ function OrderForm({
           feesTotal={Number(feesTotal) || 0}
           total={total}
           onClose={() => setShowPrint(false)}
+          authUserName={authUserName}
         />
       )}
     </div>
@@ -736,6 +743,7 @@ function PrintSheet({
   feesTotal,
   total,
   onClose,
+  authUserName,
 }: {
   code: string;
   client: Client | null;
@@ -745,6 +753,7 @@ function PrintSheet({
   servicesTotal: number;
   feesTotal: number;
   total: number;
+  authUserName?: string;
   onClose: () => void;
 }) {
   return (
@@ -777,19 +786,7 @@ function PrintSheet({
             className="mx-auto max-w-[720px] bg-white p-10 text-[#111827]"
           >
             <div className="flex items-center justify-between border-b-[3px] border-[#0B1929] pb-4">
-              <div className="flex items-center gap-3">
-                <span className="grid h-[46px] w-[46px] place-items-center rounded-[9px] bg-orange font-head text-[28px] font-bold text-white">
-                  D
-                </span>
-                <div>
-                  <div className="font-head text-[26px] font-bold leading-none">
-                    DespHub
-                  </div>
-                  <div className="mt-0.5 text-[11px] text-[#5A6472]">
-                    Despachante de Trânsito
-                  </div>
-                </div>
-              </div>
+              <PrintBrand />
               <div className="text-right">
                 <div className="font-head text-xl font-bold">
                   ORDEM DE SERVIÇO
@@ -805,8 +802,8 @@ function PrintSheet({
                 title="Cliente"
                 rows={[
                   ["Nome", client?.name ?? "—"],
-                  ["CPF/CNPJ", client?.cpfCnpj || "—"],
-                  ["Telefone", client?.telephone ?? "—"],
+                  ["CPF/CNPJ", client?.cpfCnpj ? maskCpfCnpj(client.cpfCnpj) : "—"],
+                  ["Telefone", client?.telephone ? maskPhone(client.telephone) : "—"],
                   ["Endereço", client?.address || "—"],
                 ]}
               />
@@ -876,10 +873,10 @@ function PrintSheet({
 
             <div className="mt-14 grid grid-cols-2 gap-16">
               <div className="border-t border-[#111827] pt-1.5 text-center text-[11.5px] text-[#5A6472]">
-                Assinatura do cliente
+                {client?.name || "Cliente"}
               </div>
               <div className="border-t border-[#111827] pt-1.5 text-center text-[11.5px] text-[#5A6472]">
-                DespHub — Despachante responsável
+                {authUserName || "Despachante"}
               </div>
             </div>
           </div>

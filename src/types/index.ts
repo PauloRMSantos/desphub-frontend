@@ -84,6 +84,7 @@ export interface ServiceOrder {
   servicesTotal: number;
   feesTotal: number;
   total: number;
+  createdAt?: string;
   items: ServiceOrderItem[];
 }
 
@@ -132,6 +133,23 @@ export interface CreateBudgetDTO {
 }
 
 export type UpdateBudgetDTO = CreateBudgetDTO;
+
+export interface ExpenseItem {
+  id: number;
+  description: string;
+  amount: number;
+  date: string;
+  category?: string | null;
+}
+
+export interface CreateExpenseItemDTO {
+  description: string;
+  amount: number;
+  date: string;
+  category?: string | null;
+}
+
+export type UpdateExpenseItemDTO = CreateExpenseItemDTO;
 
 export interface VehicleData {
   plate: string;
@@ -272,7 +290,7 @@ export interface CreateOfficeDTO {
 }
 
 export interface OfficeUser {
-  userId: number;
+  id: number;
   name: string;
   email: string;
   role: Role;

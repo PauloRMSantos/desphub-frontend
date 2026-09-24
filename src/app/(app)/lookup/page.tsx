@@ -103,7 +103,7 @@ export default function LookupPage() {
               </div>
             </div>
             <div>
-              <Label>RENAVAM (opcional)</Label>
+              <Label>RENAVAM</Label>
               <Input
                 mono
                 className="mt-2 h-[46px]"

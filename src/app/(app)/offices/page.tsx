@@ -11,13 +11,17 @@ import { Table } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Field, Label, ErrorText } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { DocInput } from "@/components/ui/masked-input";
+import { maskCpfCnpj } from "@/lib/format";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { usePageActions } from "@/components/shell/topbar-actions";
+import { useConfirm } from "@/components/providers/confirm-provider";
 
 export default function OfficesPage() {
   const { isAdmin } = useAuth();
+  const { confirm } = useConfirm();
   const offices = useResource(
     () => (isAdmin ? getOffices() : Promise.resolve([])),
     [isAdmin],
@@ -60,7 +64,13 @@ export default function OfficesPage() {
   }
 
   async function remove(id: number, name: string) {
-    if (!window.confirm(`Excluir o escritório "${name}"?`)) return;
+    const ok = await confirm({
+      title: "Excluir escritório",
+      message: `Excluir o escritório "${name}"? Essa ação não pode ser desfeita.`,
+      confirmText: "Excluir",
+      tone: "danger",
+    });
+    if (!ok) return;
     await deleteOffice(id);
     offices.reload();
   }
@@ -106,7 +116,7 @@ export default function OfficesPage() {
               <tr key={o.id}>
                 <td className="font-semibold">{o.name}</td>
                 <td className="font-mono text-[12.5px] text-text-2">
-                  {o.cpfCnpj || "—"}
+                  {o.cpfCnpj ? maskCpfCnpj(o.cpfCnpj) : "—"}
                 </td>
                 <td>
                   <div className="flex justify-end">
@@ -187,10 +197,10 @@ function OfficeForm({
           </Field>
           <Field>
             <Label required>CPF / CNPJ</Label>
-            <Input
+            <DocInput
               mono
               value={cpfCnpj}
-              onChange={(e) => setCpfCnpj(e.target.value)}
+              onValueChange={setCpfCnpj}
               state={errDoc ? "error" : "default"}
               placeholder="CPF (autônomo) ou CNPJ (empresa)"
             />

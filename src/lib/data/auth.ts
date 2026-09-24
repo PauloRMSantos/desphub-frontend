@@ -14,3 +14,14 @@ export function getMe(): Promise<AuthUser> {
 export function logout(): void {
   setToken(null);
 }
+
+export function resetPassword(token: string, newPassword: string) {
+  return apiSend<void>("POST", "/auth/reset-password", { token, newPassword });
+}
+
+export function changeOwnPassword(currentPassword: string, newPassword: string) {
+  return apiSend<void>("PUT", "/auth/password", {
+    currentPassword,
+    newPassword,
+  });
+}
