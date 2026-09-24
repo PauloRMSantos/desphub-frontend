@@ -36,6 +36,12 @@ export {
   deleteBudget,
 } from "./budgets";
 export {
+  getExpenses,
+  createExpense,
+  updateExpense,
+  deleteExpense,
+} from "./expenses";
+export {
   login,
   getMe,
   logout,

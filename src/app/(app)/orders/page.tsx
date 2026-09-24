@@ -48,6 +48,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { usePageActions } from "@/components/shell/topbar-actions";
 import { useAuth } from "@/components/auth/auth-provider";
+import { PrintBrand } from "@/components/print/print-brand";
 
 interface ItemRow {
   serviceId: number;
@@ -785,19 +786,7 @@ function PrintSheet({
             className="mx-auto max-w-[720px] bg-white p-10 text-[#111827]"
           >
             <div className="flex items-center justify-between border-b-[3px] border-[#0B1929] pb-4">
-              <div className="flex items-center gap-3">
-                <span className="grid h-[46px] w-[46px] place-items-center rounded-[9px] bg-orange font-head text-[28px] font-bold text-white">
-                  D
-                </span>
-                <div>
-                  <div className="font-head text-[26px] font-bold leading-none">
-                    DespHub
-                  </div>
-                  <div className="mt-0.5 text-[11px] text-[#5A6472]">
-                    Despachante de Trânsito
-                  </div>
-                </div>
-              </div>
+              <PrintBrand />
               <div className="text-right">
                 <div className="font-head text-xl font-bold">
                   ORDEM DE SERVIÇO

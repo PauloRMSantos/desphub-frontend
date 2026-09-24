@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useResource } from "@/hooks/use-resource";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import {
   getVehicles,
   getClients,
@@ -55,6 +56,7 @@ const emptyForm: CreateVehicleDTO = {
 
 export default function VehiclesPage() {
   const { can } = useAuth();
+  const { confirm } = useConfirm();
   const canWrite = can("VEHICLES_WRITE");
   const canImport = can("NFE_IMPORT");
   const vehicles = useResource(getVehicles, []);
@@ -75,7 +77,13 @@ export default function VehiclesPage() {
 
   async function remove(v: Vehicle) {
     const label = v.plate || v.model || `#${v.id}`;
-    if (!window.confirm(`Excluir o veículo "${label}"?`)) return;
+    const ok = await confirm({
+      title: "Excluir veículo",
+      message: `Excluir o veículo "${label}"? Essa ação não pode ser desfeita.`,
+      confirmText: "Excluir",
+      tone: "danger",
+    });
+    if (!ok) return;
     await deleteVehicle(v.id);
     vehicles.reload();
   }

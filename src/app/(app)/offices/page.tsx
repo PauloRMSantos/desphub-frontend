@@ -17,9 +17,11 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { usePageActions } from "@/components/shell/topbar-actions";
+import { useConfirm } from "@/components/providers/confirm-provider";
 
 export default function OfficesPage() {
   const { isAdmin } = useAuth();
+  const { confirm } = useConfirm();
   const offices = useResource(
     () => (isAdmin ? getOffices() : Promise.resolve([])),
     [isAdmin],
@@ -62,7 +64,13 @@ export default function OfficesPage() {
   }
 
   async function remove(id: number, name: string) {
-    if (!window.confirm(`Excluir o escritório "${name}"?`)) return;
+    const ok = await confirm({
+      title: "Excluir escritório",
+      message: `Excluir o escritório "${name}"? Essa ação não pode ser desfeita.`,
+      confirmText: "Excluir",
+      tone: "danger",
+    });
+    if (!ok) return;
     await deleteOffice(id);
     offices.reload();
   }

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useResource } from "@/hooks/use-resource";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import {
   getClients,
   getVehicles,
@@ -41,6 +42,7 @@ type Mode = "view" | "edit" | "new";
 
 export default function ClientsPage() {
   const { can } = useAuth();
+  const { confirm } = useConfirm();
   const canWrite = can("CLIENTS_WRITE");
   const clients = useResource(getClients, []);
   const vehicles = useResource(getVehicles, []);
@@ -99,7 +101,13 @@ export default function ClientsPage() {
 
   async function handleDelete() {
     if (!selected) return;
-    if (!window.confirm(`Excluir o cliente "${selected.name}"?`)) return;
+    const ok = await confirm({
+      title: "Excluir cliente",
+      message: `Excluir o cliente "${selected.name}"? Essa ação não pode ser desfeita.`,
+      confirmText: "Excluir",
+      tone: "danger",
+    });
+    if (!ok) return;
     await deleteClient(selected.id);
     setSelectedId(null);
     setMode("view");

@@ -4,6 +4,7 @@ import {
   Car,
   CarFront,
   FileText,
+  ClipboardList,
   Wallet,
   Settings,
   UserCog,
@@ -60,10 +61,17 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
         officeScoped: true,
       },
       {
+        href: "/budgets",
+        label: "Orçamentos",
+        icon: ClipboardList,
+        permission: "BUDGETS_READ",
+        officeScoped: true,
+      },
+      {
         href: "/finance",
         label: "Financeiro",
         icon: Wallet,
-        permission: "BUDGETS_READ",
+        permission: "FINANCIAL_READ",
         officeScoped: true,
       },
     ],
@@ -111,7 +119,7 @@ export const PAGE_META: Record<string, PageMeta> = {
     breadcrumb: ["Cadastros", "Veículos"],
   },
   "/lookup": {
-    title: "Consulta de Veículo",
+    title: "Consulta de Veículo - RS",
     subtitle: "Busca automatizada por placa e RENAVAM.",
     breadcrumb: ["Operação", "Consulta"],
   },
@@ -120,9 +128,14 @@ export const PAGE_META: Record<string, PageMeta> = {
     subtitle: "Criação, acompanhamento e impressão de OS.",
     breadcrumb: ["Operação", "Ordens de Serviço"],
   },
+  "/budgets": {
+    title: "Orçamentos",
+    subtitle: "Propostas enviadas aos clientes.",
+    breadcrumb: ["Gestão", "Orçamentos"],
+  },
   "/finance": {
     title: "Financeiro",
-    subtitle: "Receitas, pendências e orçamentos.",
+    subtitle: "Receitas, despesas e resultado do período.",
     breadcrumb: ["Gestão", "Financeiro"],
   },
   "/settings": {

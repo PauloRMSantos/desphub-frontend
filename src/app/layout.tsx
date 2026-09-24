@@ -3,6 +3,7 @@ import { Barlow_Condensed, DM_Sans, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { AuthProvider } from "@/components/auth/auth-provider";
+import { ConfirmProvider } from "@/components/providers/confirm-provider";
 
 const barlow = Barlow_Condensed({
   variable: "--font-barlow",
@@ -44,7 +45,9 @@ export default function RootLayout({
       </head>
       <body className="min-h-full">
         <ThemeProvider>
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            <ConfirmProvider>{children}</ConfirmProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

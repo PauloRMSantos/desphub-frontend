@@ -3,267 +3,319 @@
 import { useMemo, useState } from "react";
 import {
   Plus,
-  FileText,
-  ChartColumn,
   Check,
+  Pencil,
   Trash2,
-  ChevronDown,
+  X,
   ChevronLeft,
+  ChevronRight,
+  Wallet,
 } from "lucide-react";
 import { useResource } from "@/hooks/use-resource";
 import {
-  getBudgets,
-  getClients,
-  getServices,
-  createBudget,
-  updateBudget,
+  getExpenses,
+  getServiceOrders,
+  createExpense,
+  updateExpense,
+  deleteExpense,
 } from "@/lib/data";
-import type {
-  Budget,
-  BudgetStatus,
-  Client,
-  Service,
-  CreateBudgetItemDTO,
-} from "@/types";
-import { BUDGET_STATUS } from "@/config/status";
-import { brl } from "@/lib/format";
+import type { ExpenseItem } from "@/types";
+import { brl, brlNumber, isoToBR } from "@/lib/format";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { FilterChip } from "@/components/ui/filter-chip";
-import { Segmented } from "@/components/ui/segmented";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { Field, Label } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
-import { BarChart } from "@/components/charts/bar-chart";
-import { usePageActions } from "@/components/shell/topbar-actions";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useConfirm } from "@/components/providers/confirm-provider";
 
-const STATUS_LIST: BudgetStatus[] = ["PENDENTE", "APROVADO", "RECUSADO"];
+function currentMonth(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthBounds(month: string): { from: string; to: string } {
+  const [y, m] = month.split("-").map(Number);
+  const last = new Date(y, m, 0).getDate();
+  return { from: `${month}-01`, to: `${month}-${String(last).padStart(2, "0")}` };
+}
+
+function shiftMonth(month: string, delta: number): string {
+  const [y, m] = month.split("-").map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthLabel(month: string): string {
+  const [y, m] = month.split("-").map(Number);
+  const label = new Date(y, m - 1, 1).toLocaleDateString("pt-BR", {
+    month: "long",
+    year: "numeric",
+  });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
 
 export default function FinancePage() {
   const { can } = useAuth();
-  const canWrite = can("BUDGETS_WRITE");
-  const budgets = useResource(getBudgets, []);
-  const clients = useResource(getClients, []);
-  const services = useResource(getServices, []);
-  const [tab, setTab] = useState<"overview" | "budgets">("overview");
-  const [creating, setCreating] = useState(false);
+  const canWrite = can("FINANCIAL_WRITE");
+  const [month, setMonth] = useState(currentMonth());
+  const { from, to } = useMemo(() => monthBounds(month), [month]);
 
-  usePageActions(
-    () =>
-      canWrite ? (
-        <Button
-          onClick={() => {
-            setTab("budgets");
-            setCreating(true);
-          }}
-        >
-          <Plus size={17} />
-          Novo orçamento
-        </Button>
-      ) : null,
-    [canWrite],
-  );
+  const expenses = useResource(() => getExpenses({ from, to }), [from, to]);
+  const orders = useResource(getServiceOrders, []);
 
-  const clientName = (id: number) =>
-    clients.data?.find((c) => c.id === id)?.name ?? `#${id}`;
+  const revenue = useMemo(() => {
+    return (orders.data ?? [])
+      .filter((o) => o.orderStatus === "CONCLUIDA")
+      .filter((o) => {
+        const day = o.createdAt?.slice(0, 10);
+        return day ? day >= from && day <= to : false;
+      })
+      .reduce((acc, o) => acc + o.total, 0);
+  }, [orders.data, from, to]);
 
-  const list = budgets.data ?? [];
-
-  if (creating) {
-    return (
-      <BudgetForm
-        clients={clients.data ?? []}
-        services={services.data ?? []}
-        onDone={() => {
-          budgets.reload();
-          setCreating(false);
-        }}
-        onCancel={() => setCreating(false)}
-      />
-    );
-  }
+  const expensesList = expenses.data ?? [];
+  const expensesTotal = expensesList.reduce((acc, e) => acc + e.amount, 0);
+  const net = revenue - expensesTotal;
 
   return (
     <div className="fade-in flex flex-col gap-5">
-      <Segmented
-        value={tab}
-        onChange={setTab}
-        options={[
-          {
-            value: "overview",
-            label: "Visão geral",
-            icon: <ChartColumn size={16} />,
-          },
-          { value: "budgets", label: "Orçamentos", icon: <FileText size={16} /> },
-        ]}
-      />
-
-      {tab === "overview" ? (
-        <Overview budgets={list} loading={budgets.loading} />
-      ) : (
-        <BudgetList
-          budgets={list}
-          loading={budgets.loading}
-          error={!!budgets.error}
-          canWrite={canWrite}
-          clientName={clientName}
-          onReload={budgets.reload}
-          onUpdateStatus={async (b, status) => {
-            await updateBudget(b.id, {
-              code: b.code,
-              status,
-              clientId: b.clientId,
-              totalPrice: b.totalPrice,
-              items: b.items.map((it) => ({
-                serviceId: it.serviceId,
-                quantity: it.quantity,
-                unitPrice: it.unitPrice,
-              })),
-            });
-            budgets.reload();
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-function Overview({
-  budgets,
-  loading,
-}: {
-  budgets: Budget[];
-  loading: boolean;
-}) {
-  const count = (s: BudgetStatus) =>
-    budgets.filter((b) => b.status === s).length;
-  const approvedValue = budgets
-    .filter((b) => b.status === "APROVADO")
-    .reduce((acc, b) => acc + b.totalPrice, 0);
-
-  const byStatus = STATUS_LIST.map((s) => ({
-    label: BUDGET_STATUS[s].label,
-    value: count(s),
-  }));
-
-  if (loading) {
-    return (
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Card key={i}>
-            <CardBody className="space-y-4">
-              <Skeleton className="h-4 w-2/5" />
-              <Skeleton className="h-10 w-3/5" />
-            </CardBody>
-          </Card>
-        ))}
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard
-          hero
-          label="Valor aprovado"
-          currency="R$"
-          value={brl(approvedValue).replace("R$ ", "")}
-          foot="Orçamentos aprovados"
-        />
-        <KpiCard
-          label="Orçamentos"
-          value={String(budgets.length)}
-          foot="Total de propostas"
-        />
-        <KpiCard
-          label="Pendentes"
-          value={String(count("PENDENTE"))}
-          foot="Aguardando decisão"
-        />
-        <KpiCard
-          label="Aprovados"
-          value={String(count("APROVADO"))}
-          foot="Propostas fechadas"
-        />
-      </div>
-
       <Card>
-        <CardBody>
-          <span className="font-head text-[22px] font-bold text-text-1">
-            Orçamentos por status
-          </span>
-          {budgets.length > 0 ? (
-            <BarChart className="mt-2" data={byStatus} />
-          ) : (
-            <EmptyState
-              icon={<FileText size={30} />}
-              title="Nenhum orçamento"
-              description="Crie orçamentos para ver a distribuição por status."
+        <CardBody className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-[11px] font-bold uppercase tracking-[1.5px] text-text-3">
+              Período
+            </div>
+            <div className="mt-0.5 font-head text-[20px] font-bold text-text-1">
+              {monthLabel(month)}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label="Mês anterior"
+              onClick={() => setMonth((m) => shiftMonth(m, -1))}
+            >
+              <ChevronLeft size={16} />
+            </Button>
+            <Input
+              type="month"
+              value={month}
+              onChange={(e) => setMonth(e.target.value || currentMonth())}
+              className="w-[170px]"
             />
-          )}
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label="Próximo mês"
+              onClick={() => setMonth((m) => shiftMonth(m, 1))}
+            >
+              <ChevronRight size={16} />
+            </Button>
+          </div>
         </CardBody>
       </Card>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <KpiCard
+          label="Receita"
+          currency="R$"
+          value={brlNumber(revenue)}
+          foot="OS concluídas no mês"
+        />
+        <KpiCard
+          label="Despesas"
+          currency="R$"
+          value={brlNumber(expensesTotal)}
+          foot="Lançamentos do mês"
+        />
+        <KpiCard
+          hero
+          label="Total líquido"
+          currency="R$"
+          value={brlNumber(net)}
+          foot={net >= 0 ? "Resultado positivo" : "Resultado negativo"}
+        />
+      </div>
+
+      <ExpensesManager
+        month={month}
+        expenses={expensesList}
+        loading={expenses.loading}
+        error={!!expenses.error}
+        canWrite={canWrite}
+        onReload={expenses.reload}
+      />
     </div>
   );
 }
 
-function BudgetList({
-  budgets,
+function ExpensesManager({
+  month,
+  expenses,
   loading,
   error,
   canWrite,
-  clientName,
   onReload,
-  onUpdateStatus,
 }: {
-  budgets: Budget[];
+  month: string;
+  expenses: ExpenseItem[];
   loading: boolean;
   error: boolean;
   canWrite: boolean;
-  clientName: (id: number) => string;
   onReload: () => void;
-  onUpdateStatus: (b: Budget, status: BudgetStatus) => Promise<void>;
 }) {
-  const [filter, setFilter] = useState<"all" | BudgetStatus>("all");
-  const [menuFor, setMenuFor] = useState<number | null>(null);
+  const { confirm } = useConfirm();
+  const [editing, setEditing] = useState<ExpenseItem | null>(null);
+  const [description, setDescription] = useState("");
+  const [amount, setAmount] = useState("");
+  const [date, setDate] = useState(`${month}-01`);
+  const [category, setCategory] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
-  const filtered =
-    filter === "all" ? budgets : budgets.filter((b) => b.status === filter);
+  function reset() {
+    setEditing(null);
+    setDescription("");
+    setAmount("");
+    setDate(`${month}-01`);
+    setCategory("");
+    setFormError(null);
+  }
+
+  function startEdit(e: ExpenseItem) {
+    setEditing(e);
+    setDescription(e.description);
+    setAmount(String(e.amount));
+    setDate(e.date.slice(0, 10));
+    setCategory(e.category ?? "");
+    setFormError(null);
+  }
+
+  async function submit() {
+    if (!description.trim() || !amount || !date) {
+      setFormError("Informe descrição, valor e data.");
+      return;
+    }
+    setSaving(true);
+    setFormError(null);
+    const payload = {
+      description: description.trim(),
+      amount: Number(amount),
+      date,
+      category: category.trim() || undefined,
+    };
+    try {
+      if (editing) await updateExpense(editing.id, payload);
+      else await createExpense(payload);
+      reset();
+      onReload();
+    } catch {
+      setFormError("Não foi possível salvar a despesa.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function remove(e: ExpenseItem) {
+    const ok = await confirm({
+      title: "Excluir despesa",
+      message: `Excluir a despesa "${e.description}"? Essa ação não pode ser desfeita.`,
+      confirmText: "Excluir",
+      tone: "danger",
+    });
+    if (!ok) return;
+    await deleteExpense(e.id);
+    if (editing?.id === e.id) reset();
+    onReload();
+  }
 
   return (
     <Card>
-      <div className="flex flex-wrap gap-2.5 border-b border-border p-4">
-        <FilterChip active={filter === "all"} onClick={() => setFilter("all")}>
-          Todos
-        </FilterChip>
-        {STATUS_LIST.map((s) => (
-          <FilterChip
-            key={s}
-            active={filter === s}
-            onClick={() => setFilter(s)}
-          >
-            {BUDGET_STATUS[s].label}
-          </FilterChip>
-        ))}
-      </div>
+      <CardHeader>
+        <Wallet size={18} className="text-link-blue" />
+        <CardTitle>Despesas</CardTitle>
+      </CardHeader>
+
+      {canWrite && (
+        <CardBody className="border-b border-border">
+          <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-[1fr_150px_160px_150px_auto]">
+            <Field>
+              <Label required>Descrição</Label>
+              <Input
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Ex.: Aluguel, taxa DETRAN…"
+              />
+            </Field>
+            <Field>
+              <Label required>Valor</Label>
+              <Input
+                mono
+                type="number"
+                min={0}
+                step="0.01"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0,00"
+              />
+            </Field>
+            <Field>
+              <Label required>Data</Label>
+              <Input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
+            </Field>
+            <Field>
+              <Label>Categoria</Label>
+              <Input
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                placeholder="Opcional"
+              />
+            </Field>
+            <div className="flex gap-2">
+              <Button onClick={submit} disabled={saving}>
+                {saving ? (
+                  <Spinner />
+                ) : editing ? (
+                  <Check size={16} />
+                ) : (
+                  <Plus size={16} />
+                )}
+                {editing ? "Salvar" : "Adicionar"}
+              </Button>
+              {editing && (
+                <Button variant="ghost" onClick={reset} disabled={saving}>
+                  <X size={16} />
+                </Button>
+              )}
+            </div>
+          </div>
+          {formError && (
+            <div className="mt-2 text-[12px] font-medium text-danger">
+              {formError}
+            </div>
+          )}
+        </CardBody>
+      )}
 
       {loading ? (
         <div className="space-y-3 p-5">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-10 w-full" />
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-9 w-full" />
           ))}
         </div>
       ) : error ? (
         <EmptyState
-          icon={<FileText size={30} />}
+          icon={<Wallet size={30} />}
           title="Não foi possível carregar"
           description="Estamos passando por problemas técnicos, pedimos desculpas pelo incoveniente :("
           action={
@@ -272,324 +324,61 @@ function BudgetList({
             </Button>
           }
         />
-      ) : filtered.length === 0 ? (
+      ) : expenses.length === 0 ? (
         <EmptyState
-          icon={<FileText size={30} />}
-          title="Nenhum orçamento"
-          description="Os orçamentos criados aparecerão aqui."
+          icon={<Wallet size={30} />}
+          title="Nenhuma despesa no período"
+          description="Lance as despesas do mês para acompanhar o resultado."
         />
       ) : (
         <Table>
           <thead>
             <tr>
-              <th>Orçamento</th>
-              <th>Cliente</th>
-              <th>Itens</th>
-              <th>Status</th>
+              <th>Descrição</th>
+              <th>Categoria</th>
+              <th>Data</th>
               <th className="text-right">Valor</th>
+              {canWrite && <th className="w-24" />}
             </tr>
           </thead>
           <tbody>
-            {filtered.map((b) => (
-              <tr key={b.id}>
-                <td className="font-mono text-[12.5px] font-semibold text-link-blue">
-                  {b.code}
-                </td>
-                <td className="font-semibold">{clientName(b.clientId)}</td>
-                <td className="text-text-2">
-                  {b.items.length}{" "}
-                  {b.items.length === 1 ? "item" : "itens"}
-                </td>
-                <td>
-                  {!canWrite ? (
-                    <Badge tone={BUDGET_STATUS[b.status].tone}>
-                      {BUDGET_STATUS[b.status].label}
-                    </Badge>
-                  ) : (
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setMenuFor(menuFor === b.id ? null : b.id)
-                      }
-                      className="inline-flex items-center gap-1.5 rounded-full border border-transparent px-1.5 py-1 hover:border-border-strong hover:bg-surface-soft"
-                    >
-                      <Badge tone={BUDGET_STATUS[b.status].tone}>
-                        {BUDGET_STATUS[b.status].label}
-                      </Badge>
-                      <ChevronDown size={13} className="text-text-3" />
-                    </button>
-                    {menuFor === b.id && (
-                      <div className="fade-in absolute left-0 top-[34px] z-40 flex min-w-[186px] flex-col gap-0.5 rounded-xl border border-border bg-menu p-1.5 shadow-pop">
-                        {STATUS_LIST.map((s) => (
-                          <button
-                            key={s}
-                            type="button"
-                            onClick={async () => {
-                              setMenuFor(null);
-                              if (s !== b.status) await onUpdateStatus(b, s);
-                            }}
-                            className="flex items-center gap-2 rounded-[10px] p-2 hover:bg-row-hover"
-                          >
-                            <Badge tone={BUDGET_STATUS[s].tone}>
-                              {BUDGET_STATUS[s].label}
-                            </Badge>
-                            {b.status === s && (
-                              <Check
-                                size={14}
-                                className="ml-auto text-link-blue"
-                              />
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  )}
+            {expenses.map((e) => (
+              <tr key={e.id}>
+                <td className="font-semibold">{e.description}</td>
+                <td className="text-text-2">{e.category || "—"}</td>
+                <td className="font-mono text-[12.5px] text-text-2">
+                  {isoToBR(e.date.slice(0, 10))}
                 </td>
                 <td className="text-right font-mono font-semibold">
-                  {brl(b.totalPrice)}
+                  {brl(e.amount)}
                 </td>
+                {canWrite && (
+                  <td>
+                    <div className="flex justify-end gap-1">
+                      <button
+                        type="button"
+                        aria-label="Editar"
+                        onClick={() => startEdit(e)}
+                        className="grid h-8 w-8 place-items-center rounded-[10px] text-text-3 hover:bg-surface-soft hover:text-text-1"
+                      >
+                        <Pencil size={15} />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Excluir"
+                        onClick={() => remove(e)}
+                        className="grid h-8 w-8 place-items-center rounded-[10px] text-text-3 hover:bg-danger-bg hover:text-danger"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
         </Table>
       )}
     </Card>
-  );
-}
-
-interface ItemRow {
-  serviceId: number;
-  quantity: number;
-  unitPrice: number;
-}
-
-function BudgetForm({
-  clients,
-  services,
-  onDone,
-  onCancel,
-}: {
-  clients: Client[];
-  services: Service[];
-  onDone: () => void;
-  onCancel: () => void;
-}) {
-  const [code, setCode] = useState(`ORC-${Date.now().toString().slice(-6)}`);
-  const [clientId, setClientId] = useState<number | null>(null);
-  const [status, setStatus] = useState<BudgetStatus>("PENDENTE");
-  const [items, setItems] = useState<ItemRow[]>([]);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const serviceName = (id: number) =>
-    services.find((s) => s.id === id)?.serviceName ?? `Serviço #${id}`;
-  const total = items.reduce((acc, i) => acc + i.quantity * i.unitPrice, 0);
-
-  function addItem() {
-    const first = services[0];
-    if (!first) return;
-    setItems((p) => [
-      ...p,
-      { serviceId: first.id, quantity: 1, unitPrice: first.price },
-    ]);
-  }
-
-  async function submit() {
-    if (!code.trim()) {
-      setError("Informe o código do orçamento.");
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    try {
-      await createBudget({
-        code: code.trim(),
-        status,
-        clientId: clientId ?? undefined,
-        totalPrice: total,
-        items: items.map<CreateBudgetItemDTO>((i) => ({
-          serviceId: i.serviceId,
-          quantity: i.quantity,
-          unitPrice: i.unitPrice,
-        })),
-      });
-      onDone();
-    } catch {
-      setError("Não foi possível salvar o orçamento.");
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="fade-in grid grid-cols-1 items-start gap-4 lg:grid-cols-[1fr_300px]">
-      <div className="flex flex-col gap-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="self-start"
-          onClick={onCancel}
-        >
-          <ChevronLeft size={15} />
-          Voltar
-        </Button>
-
-        <Card>
-          <CardHeader>
-            <FileText size={18} className="text-link-blue" />
-            <CardTitle>Novo orçamento</CardTitle>
-          </CardHeader>
-          <CardBody className="flex flex-col gap-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field>
-                <Label required>Código</Label>
-                <Input
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  className="font-mono"
-                />
-              </Field>
-              <Field>
-                <Label>Cliente</Label>
-                <Select
-                  value={clientId ?? ""}
-                  onChange={(e) =>
-                    setClientId(e.target.value ? Number(e.target.value) : null)
-                  }
-                >
-                  <option value="">Selecione…</option>
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-            </div>
-
-            <Field>
-              <Label>Status</Label>
-              <Select
-                value={status}
-                onChange={(e) => setStatus(e.target.value as BudgetStatus)}
-              >
-                {STATUS_LIST.map((s) => (
-                  <option key={s} value={s}>
-                    {BUDGET_STATUS[s].label}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-
-            <Field>
-              <Label>Serviços incluídos</Label>
-              <div className="flex flex-col gap-2">
-                {items.map((it, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-2 rounded-md border border-border p-2.5"
-                  >
-                    <Select
-                      value={it.serviceId}
-                      className="flex-1"
-                      onChange={(e) => {
-                        const s = services.find(
-                          (x) => x.id === Number(e.target.value),
-                        );
-                        if (!s) return;
-                        setItems((p) =>
-                          p.map((x, idx) =>
-                            idx === i
-                              ? {
-                                  serviceId: s.id,
-                                  quantity: x.quantity,
-                                  unitPrice: s.price,
-                                }
-                              : x,
-                          ),
-                        );
-                      }}
-                    >
-                      {services.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.serviceName}
-                        </option>
-                      ))}
-                    </Select>
-                    <Input
-                      mono
-                      type="number"
-                      min={1}
-                      value={it.quantity}
-                      onChange={(e) =>
-                        setItems((p) =>
-                          p.map((x, idx) =>
-                            idx === i
-                              ? { ...x, quantity: Math.max(1, +e.target.value) }
-                              : x,
-                          ),
-                        )
-                      }
-                      className="w-16 px-2 py-2"
-                    />
-                    <span className="w-24 text-right font-mono text-[13px] font-semibold">
-                      {brl(it.quantity * it.unitPrice)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setItems((p) => p.filter((_, idx) => idx !== i))
-                      }
-                      className="grid h-8 w-8 place-items-center rounded-[10px] text-text-3 hover:bg-danger-bg hover:text-danger"
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
-                ))}
-                <Button
-                  variant="soft"
-                  size="sm"
-                  className="self-start"
-                  onClick={addItem}
-                  disabled={services.length === 0}
-                >
-                  <Plus size={15} />
-                  Adicionar item
-                </Button>
-                {services.length === 0 && (
-                  <span className="text-[12px] text-text-3">
-                    Cadastre serviços para adicionar itens.
-                  </span>
-                )}
-              </div>
-            </Field>
-
-            {error && (
-              <div className="text-[12px] font-medium text-danger">{error}</div>
-            )}
-          </CardBody>
-        </Card>
-      </div>
-
-      <div className="lg:sticky lg:top-[92px]">
-        <Card className="overflow-hidden">
-          <div className="bg-blue px-5 py-4 text-white">
-            <div className="text-xs font-semibold text-[#A9C6E5]">
-              VALOR DO ORÇAMENTO
-            </div>
-            <div className="mt-0.5 font-head text-[32px] font-bold">
-              {brl(total)}
-            </div>
-          </div>
-          <CardBody className="flex flex-col gap-2.5">
-            <Button block onClick={submit} disabled={saving}>
-              {saving ? <Spinner /> : <Check size={16} />}
-              Emitir orçamento
-            </Button>
-          </CardBody>
-        </Card>
-      </div>
-    </div>
   );
 }

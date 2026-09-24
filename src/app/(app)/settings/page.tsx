@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Plus, Check, Pencil, Trash2, Sun, Moon, Wrench, X } from "lucide-react";
 import { useResource } from "@/hooks/use-resource";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import {
   getServices,
   createService,
@@ -77,6 +78,7 @@ function Appearance() {
 
 function ServicesManager() {
   const { can } = useAuth();
+  const { confirm } = useConfirm();
   const canWrite = can("SERVICES_WRITE");
   const services = useResource(getServices, []);
   const [editing, setEditing] = useState<Service | null>(null);
@@ -120,7 +122,13 @@ function ServicesManager() {
   }
 
   async function remove(s: Service) {
-    if (!window.confirm(`Excluir o serviço "${s.serviceName}"?`)) return;
+    const ok = await confirm({
+      title: "Excluir serviço",
+      message: `Excluir o serviço "${s.serviceName}"? Essa ação não pode ser desfeita.`,
+      confirmText: "Excluir",
+      tone: "danger",
+    });
+    if (!ok) return;
     await deleteService(s.id);
     if (editing?.id === s.id) reset();
     services.reload();

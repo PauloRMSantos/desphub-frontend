@@ -36,6 +36,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { usePageActions } from "@/components/shell/topbar-actions";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import { cn } from "@/lib/utils";
 
 const ROLE_LABEL: Record<Role, string> = {
@@ -48,6 +49,7 @@ type View = "list" | "new" | "perms";
 
 export default function UsersPage() {
   const { user, can, isAdmin } = useAuth();
+  const { confirm, notify } = useConfirm();
   const allowed = can("USERS_MANAGE");
   const newRole: Role = isAdmin ? "OFFICE_OWNER" : "EMPLOYEE";
 
@@ -128,14 +130,23 @@ export default function UsersPage() {
   }
 
   async function remove(u: OfficeUser) {
-    if (!window.confirm(`Excluir o usuário "${u.name}"?`)) return;
+    const ok = await confirm({
+      title: "Excluir usuário",
+      message: `Excluir o usuário "${u.name}"? Essa ação não pode ser desfeita.`,
+      confirmText: "Excluir",
+      tone: "danger",
+    });
+    if (!ok) return;
     await deleteOfficeUser(officeId, u.id);
     users.reload();
   }
 
   async function resetPassword(u: OfficeUser) {
     await resetOfficeUserPassword(officeId, u.id);
-    alert(`Foi enviada uma solicitação de redefinição de senha para o e-mail ${u.email}. Confira a caixa de spam`);
+    await notify({
+      title: "Redefinição enviada",
+      message: `Foi enviada uma solicitação de redefinição de senha para ${u.email}. Peça para o usuário conferir também a caixa de spam.`,
+    });
   }
 
   const list = users.data ?? [];
