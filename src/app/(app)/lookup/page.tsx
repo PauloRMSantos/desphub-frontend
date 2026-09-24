@@ -12,14 +12,16 @@ import {
   FileText,
   RefreshCw,
 } from "lucide-react";
-import { queryVehicle } from "@/lib/data";
+import { queryVehicle, getVehicles } from "@/lib/data";
 import type { VehicleQueryResponse } from "@/types";
 import { formatPlate, brl, brlDecimal, formatDateTimeBR } from "@/lib/format";
+import { useResource } from "@/hooks/use-resource";
 import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePageActions } from "@/components/shell/topbar-actions";
@@ -32,6 +34,15 @@ export default function LookupPage() {
   const [renavam, setRenavam] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [result, setResult] = useState<VehicleQueryResponse | null>(null);
+  const vehicles = useResource(getVehicles, []);
+  const savedVehicles = (vehicles.data ?? []).filter((v) => v.plate);
+
+  function pickVehicle(id: number | null) {
+    const v = vehicles.data?.find((x) => x.id === id);
+    if (!v) return;
+    setPlate(formatPlate(v.plate));
+    setRenavam((v.renavam ?? "").replace(/\D/g, ""));
+  }
 
   function reset() {
     setPlate("");
@@ -85,13 +96,33 @@ export default function LookupPage() {
                 Consulta de Veículo
               </div>
               <div className="mt-1 text-[13px] text-[#9DB4CE]">
-                Busca automatizada por placa ou RENAVAM via crawler / RPA
+                Busca de veículos do RS por Placa e RENAVAM
               </div>
             </div>
           </div>
         </div>
 
         <CardBody className="px-7 py-7">
+          {savedVehicles.length > 0 && (
+            <div className="mb-5">
+              <Label>Veículo cadastrado</Label>
+              <Select
+                className="mt-2"
+                value=""
+                onChange={(e) =>
+                  pickVehicle(e.target.value ? Number(e.target.value) : null)
+                }
+              >
+                <option value="">Selecionar veículo cadastrado…</option>
+                {savedVehicles.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.plate} — {v.brand} {v.model}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 items-end gap-5 sm:grid-cols-[auto_1fr]">
             <div>
               <Label>Placa do veículo</Label>
