@@ -13,6 +13,7 @@ export {
   deleteVehicle,
   queryVehicle,
   importNfeByPdf,
+  parseVehicleDocument,
 } from "./vehicles";
 export {
   getServices,

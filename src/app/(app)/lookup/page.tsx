@@ -11,10 +11,20 @@ import {
   Link2,
   FileText,
   RefreshCw,
+  Plus,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { queryVehicle, getVehicles } from "@/lib/data";
-import type { VehicleQueryResponse } from "@/types";
-import { formatPlate, brl, brlDecimal, formatDateTimeBR } from "@/lib/format";
+import { useAuth } from "@/components/auth/auth-provider";
+import type { CreateVehicleDTO, VehicleQueryResponse } from "@/types";
+import {
+  formatPlate,
+  brl,
+  brlDecimal,
+  formatDateTimeBR,
+  maskCpfCnpj,
+  onlyDigits,
+} from "@/lib/format";
 import { useResource } from "@/hooks/use-resource";
 import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,6 +38,37 @@ import { usePageActions } from "@/components/shell/topbar-actions";
 import { GovbrConnection } from "@/components/lookup/govbr-connection";
 
 type Phase = "idle" | "loading" | "done" | "error";
+
+const RESTRICTION_LABEL: Record<string, string> = {
+  THEFT_ROBBERY: "Furto / Roubo",
+  IMPOUNDED: "Apreendido",
+  ADMINISTRATIVA: "Administrativa",
+};
+
+function formatOwnerCpf(value: string | null | undefined): string {
+  if (!value || value.includes("*")) return value ?? "";
+  return onlyDigits(value).length === 11 ? maskCpfCnpj(value) : value;
+}
+
+const VEHICLE_PREFILL_KEY = "dh-vehicle-prefill";
+
+function toVehicleDraft(data: VehicleQueryResponse): Partial<CreateVehicleDTO> {
+  const v = data.vehicle;
+  const plate = v?.plate || data.plate || "";
+  const [brand, ...rest] = (v?.makeModel ?? "").split("/");
+  return {
+    plate: plate ? formatPlate(plate) : "",
+    brand: (brand ?? "").trim(),
+    model: rest.join("/").trim(),
+    fabricationAndModel:
+      v?.manufactureYear && v?.modelYear
+        ? `${v.manufactureYear}/${v.modelYear}`
+        : "",
+    color: v?.color ?? "",
+    renavam: (v?.renavam ?? "").replace(/\D/g, ""),
+    chassis: v?.chassis ?? "",
+  };
+}
 
 export default function LookupPage() {
   const [plate, setPlate] = useState("");
@@ -208,24 +249,37 @@ export default function LookupPage() {
 }
 
 function LookupResult({ data }: { data: VehicleQueryResponse }) {
+  const router = useRouter();
+  const { can } = useAuth();
+  const canRegister = can("VEHICLES_WRITE");
   const v = data.vehicle;
   const hasIssues =
     (data.restrictions?.length ?? 0) > 0 || (data.debts?.length ?? 0) > 0;
 
-  const fields: [string, string, boolean?][] = [
-    ["Marca / Modelo", v.makeModel],
-    ["Ano fab. / modelo", `${v.manufactureYear} / ${v.modelYear}`, true],
-    ["Cor", v.color],
-    ["Município / UF", `${v.city} / ${v.plateState}`],
-    ["Categoria", v.category],
-    ["Espécie", v.species],
-    ["Tipo", v.type],
-    ["Combustível", v.fuel],
-    ["RENAVAM", v.renavam, true],
-    ["Chassi (VIN)", v.chassis, true],
-    ["Situação RENAVAM", v.renavamStatus],
-    ["CPF do proprietário", v.ownerCpf, true],
-  ];
+  function registerVehicle() {
+    try {
+      sessionStorage.setItem(
+        VEHICLE_PREFILL_KEY,
+        JSON.stringify(toVehicleDraft(data)),
+      );
+    } catch {}
+    router.push("/vehicles");
+  }
+
+  const fields: [string, string, boolean?][] = v
+    ? [
+        ["Marca / Modelo", v.makeModel],
+        ["Ano fab. / modelo", `${v.manufactureYear} / ${v.modelYear}`, true],
+        ["Cor", v.color],
+        ["Município / UF", `${v.city} / ${v.plateState}`],
+        ["Espécie", v.species],
+        ["Tipo", v.type],
+        ["RENAVAM", v.renavam, true],
+        ["Chassi (VIN)", v.chassis, true],
+        ["Situação RENAVAM", v.renavamStatus],
+        ["CPF do proprietário", formatOwnerCpf(v.ownerCpf), true],
+      ]
+    : [];
 
   return (
     <Card className="fade-in mt-4 overflow-hidden">
@@ -234,27 +288,43 @@ function LookupResult({ data }: { data: VehicleQueryResponse }) {
         style={{ background: hasIssues ? "var(--tint-warn)" : "var(--tint-ok)" }}
       >
         <div className="flex items-center gap-4">
-          <MiniPlate plate={data.plate || v.plate} />
+          <MiniPlate plate={data.plate || v?.plate || ""} />
           <div>
             <div className="font-head text-[21px] font-bold leading-none text-text-1">
-              {v.makeModel}
+              {v?.makeModel ?? "Dados do veículo indisponíveis"}
             </div>
             <div className="mt-1 text-[12.5px] text-text-3">
               Resultado da consulta automatizada
             </div>
           </div>
         </div>
-        <div className="text-right">
-          <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[1px] text-text-3">
-            Situação
+        <div className="flex items-center gap-4">
+          {canRegister && (
+            <Button size="sm" onClick={registerVehicle}>
+              <Plus size={15} />
+              Cadastrar veículo
+            </Button>
+          )}
+          <div className="text-right">
+            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[1px] text-text-3">
+              Situação
+            </div>
+            <Badge tone={hasIssues ? "warning" : "success"}>
+              {hasIssues ? "Com pendências" : "Regular"}
+            </Badge>
           </div>
-          <Badge tone={hasIssues ? "warning" : "success"}>
-            {hasIssues ? "Com pendências" : "Regular"}
-          </Badge>
         </div>
       </div>
 
       <CardBody>
+        {!v && (
+          <div className="mb-5 flex items-center gap-2 rounded-lg border border-tint-info-border bg-tint-warn p-3.5 text-[13px] text-text-2">
+            <AlertTriangle size={16} className="text-warning" />
+            Consulta parcial: os dados do veículo não foram retornados pelo
+            DETRAN. As demais seções abaixo, quando disponíveis, foram
+            preenchidas.
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3">
           {fields.map(([label, value, mono]) => (
             <div key={label}>
@@ -315,7 +385,9 @@ function LookupResult({ data }: { data: VehicleQueryResponse }) {
               <ul className="flex flex-col gap-1.5">
                 {data.restrictions.map((r, i) => (
                   <li key={i} className="text-[13px] text-text-1">
-                    <span className="font-semibold">{r.type}</span>
+                    <span className="font-semibold">
+                      {RESTRICTION_LABEL[r.type] ?? r.type}
+                    </span>
                     {r.description ? ` — ${r.description}` : ""}
                   </li>
                 ))}
@@ -358,7 +430,32 @@ function LookupResult({ data }: { data: VehicleQueryResponse }) {
           </div>
         </div>
 
-        {data.taxes?.length > 0 && (
+        {data.specialCharacteristics?.length ? (
+          <Section title="Características especiais">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {data.specialCharacteristics.map((c, i) => (
+                <div
+                  key={i}
+                  className="rounded-lg border border-tint-info-border bg-tint-warn p-3.5"
+                >
+                  <div className="flex items-center gap-2 text-[13px] font-semibold text-text-1">
+                    <AlertTriangle size={15} className="text-warning" />
+                    {c.description}
+                  </div>
+                  {(c.origin || c.startDate || c.code) && (
+                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-[11.5px] text-text-3">
+                      {c.origin && <span>Origem: {c.origin}</span>}
+                      {c.startDate && <span>Início: {c.startDate}</span>}
+                      {c.code && <span className="font-mono">Número CSV: {c.code}</span>}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Section>
+        ) : null}
+
+        {(data.taxes?.length ?? 0) > 0 && (
           <Section title="Histórico de IPVA">
             <div className="overflow-x-auto">
               <table className="w-full text-[13px]">
@@ -366,12 +463,16 @@ function LookupResult({ data }: { data: VehicleQueryResponse }) {
                   <tr className="text-left text-text-3">
                     <th className="py-1.5 font-semibold">Ano</th>
                     <th className="py-1.5 font-semibold">Situação</th>
-                    <th className="py-1.5 text-right font-semibold">Valor</th>
-                    <th className="py-1.5 font-semibold">Vencimento</th>
+                    <th className="whitespace-nowrap py-1.5 text-right font-semibold">
+                      Valor
+                    </th>
+                    <th className="whitespace-nowrap py-1.5 pl-6 text-right font-semibold">
+                      Vencimento
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {data.taxes.map((t, i) => (
+                  {data.taxes?.map((t, i) => (
                     <tr key={i} className="border-t border-border">
                       <td className="py-2 font-mono">{t.year}</td>
                       <td className="py-2">
@@ -382,10 +483,12 @@ function LookupResult({ data }: { data: VehicleQueryResponse }) {
                           )}
                         </span>
                       </td>
-                      <td className="py-2 text-right font-mono">
+                      <td className="whitespace-nowrap py-2 text-right font-mono">
                         {brlDecimal(t.amount)}
                       </td>
-                      <td className="py-2 text-text-2">{t.dueDate || "—"}</td>
+                      <td className="whitespace-nowrap py-2 pl-6 text-right text-text-2">
+                        {t.dueDate || "—"}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -394,13 +497,13 @@ function LookupResult({ data }: { data: VehicleQueryResponse }) {
           </Section>
         )}
 
-        {data.errors?.length > 0 && (
+        {(data.errors?.length ?? 0) > 0 && (
           <div className="mt-4 rounded-lg border border-tint-info-border bg-tint-warn p-3.5">
             <div className="mb-1.5 text-[12.5px] font-bold text-warning">
               Etapas com aviso
             </div>
             <ul className="flex flex-col gap-1">
-              {data.errors.map((e, i) => (
+              {data.errors?.map((e, i) => (
                 <li key={i} className="text-[12px] text-text-2">
                   <span className="font-semibold">{e.step}:</span> {e.message}
                 </li>
@@ -417,12 +520,6 @@ function LookupResult({ data }: { data: VehicleQueryResponse }) {
               : "—"}
           </span>
           {data.source && <span>Fonte: {data.source}</span>}
-          {data.jobId && (
-            <span className="flex items-center gap-1.5 font-mono">
-              <Link2 size={13} />
-              {data.jobId}
-            </span>
-          )}
         </div>
       </CardBody>
     </Card>

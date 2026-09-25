@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import {
   Plus,
   Check,
-  Pencil,
   Trash2,
   X,
   ChevronLeft,
@@ -338,12 +337,16 @@ function ExpensesManager({
               <th>Categoria</th>
               <th>Data</th>
               <th className="text-right">Valor</th>
-              {canWrite && <th className="w-24" />}
+              {canWrite && <th className="w-14" />}
             </tr>
           </thead>
           <tbody>
             {expenses.map((e) => (
-              <tr key={e.id}>
+              <tr
+                key={e.id}
+                className={canWrite ? "cursor-pointer" : undefined}
+                onClick={canWrite ? () => startEdit(e) : undefined}
+              >
                 <td className="font-semibold">{e.description}</td>
                 <td className="text-text-2">{e.category || "—"}</td>
                 <td className="font-mono text-[12.5px] text-text-2">
@@ -354,19 +357,14 @@ function ExpensesManager({
                 </td>
                 {canWrite && (
                   <td>
-                    <div className="flex justify-end gap-1">
-                      <button
-                        type="button"
-                        aria-label="Editar"
-                        onClick={() => startEdit(e)}
-                        className="grid h-8 w-8 place-items-center rounded-[10px] text-text-3 hover:bg-surface-soft hover:text-text-1"
-                      >
-                        <Pencil size={15} />
-                      </button>
+                    <div className="flex justify-end">
                       <button
                         type="button"
                         aria-label="Excluir"
-                        onClick={() => remove(e)}
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          remove(e);
+                        }}
                         className="grid h-8 w-8 place-items-center rounded-[10px] text-text-3 hover:bg-danger-bg hover:text-danger"
                       >
                         <Trash2 size={15} />

@@ -42,7 +42,7 @@ export interface CreateVehicleDTO {
   fabricationAndModel: string;
   color: string;
   renavam?: string;
-  chassis: string;
+  chassis?: string;
   clientId?: number | null;
 }
 
@@ -161,10 +161,8 @@ export interface VehicleData {
   color: string;
   type: string;
   species: string;
-  category: string;
   city: string;
   plateState: string;
-  fuel: string;
   renavamStatus: string;
   ownerCpf: string;
 }
@@ -194,6 +192,13 @@ export interface Restriction {
   description: string;
 }
 
+export interface SpecialCharacteristic {
+  description: string;
+  origin?: string;
+  code?: string;
+  startDate?: string;
+}
+
 export interface Debt {
   type: string;
   year: number;
@@ -219,14 +224,15 @@ export interface VehicleQueryResponse {
   plate: string;
   source: string;
   collectedAt: string;
-  vehicle: VehicleData;
-  licensing: Licensing;
-  violations: Violations;
-  restrictions: Restriction[];
-  debts: Debt[];
-  taxes: Tax[];
+  vehicle: VehicleData | null;
+  licensing: Licensing | null;
+  violations: Violations | null;
+  restrictions?: Restriction[];
+  specialCharacteristics?: SpecialCharacteristic[];
+  debts?: Debt[];
+  taxes?: Tax[];
   status: string;
-  errors: StepError[];
+  errors?: StepError[];
 }
 
 export type Role = "DESPHUB_ADMIN" | "OFFICE_OWNER" | "EMPLOYEE";
@@ -324,6 +330,17 @@ export interface NfeImportResponse {
   accessKey: NfeAccessKeyInfo;
   vehicle: CreateVehicleDTO;
   warnings: string[];
+}
+
+export interface VehicleDocumentParseResponse {
+  documentType: string;
+  plate: string | null;
+  brand: string | null;
+  model: string | null;
+  fabricationAndModel: string | null;
+  color: string | null;
+  renavam: string | null;
+  chassis: string | null;
 }
 
 export interface SeriesPoint {

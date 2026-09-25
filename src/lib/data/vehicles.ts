@@ -3,6 +3,7 @@ import type {
   NfeImportResponse,
   UpdateVehicleDTO,
   Vehicle,
+  VehicleDocumentParseResponse,
   VehicleQueryResponse,
 } from "@/types";
 import { apiGet, apiSend, apiUpload } from "./http";
@@ -38,4 +39,15 @@ export function importNfeByPdf(file: File): Promise<NfeImportResponse> {
   const formData = new FormData();
   formData.append("file", file);
   return apiUpload<NfeImportResponse>("/vehicles/nfe/pdf", formData);
+}
+
+export function parseVehicleDocument(
+  file: File,
+): Promise<VehicleDocumentParseResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+  return apiUpload<VehicleDocumentParseResponse>(
+    "/vehicles/parse-document",
+    formData,
+  );
 }

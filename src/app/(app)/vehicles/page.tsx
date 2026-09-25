@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Plus,
   Car,
@@ -11,8 +11,8 @@ import {
   ChevronLeft,
   Upload,
   AlertTriangle,
-  Pencil,
   Trash2,
+  ScrollText,
 } from "lucide-react";
 import { useResource } from "@/hooks/use-resource";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -24,6 +24,7 @@ import {
   updateVehicle,
   deleteVehicle,
   importNfeByPdf,
+  parseVehicleDocument,
 } from "@/lib/data";
 import type { CreateVehicleDTO, Vehicle } from "@/types";
 import { formatPlate, maskYearModel } from "@/lib/format";
@@ -41,7 +42,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { usePageActions } from "@/components/shell/topbar-actions";
 
-type View = { kind: "list" } | { kind: "new" } | { kind: "edit"; vehicle: Vehicle };
+type View =
+  | { kind: "list" }
+  | { kind: "new"; prefill?: Partial<CreateVehicleDTO> }
+  | { kind: "edit"; vehicle: Vehicle };
+
+const VEHICLE_PREFILL_KEY = "dh-vehicle-prefill";
 
 const emptyForm: CreateVehicleDTO = {
   plate: "",
@@ -63,6 +69,17 @@ export default function VehiclesPage() {
   const clients = useResource(getClients, []);
   const [view, setView] = useState<View>({ kind: "list" });
   const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    if (!canWrite) return;
+    try {
+      const raw = sessionStorage.getItem(VEHICLE_PREFILL_KEY);
+      if (raw) {
+        sessionStorage.removeItem(VEHICLE_PREFILL_KEY);
+        setView({ kind: "new", prefill: JSON.parse(raw) });
+      }
+    } catch {}
+  }, [canWrite]);
 
   usePageActions(
     () =>
@@ -110,6 +127,7 @@ export default function VehiclesPage() {
     return (
       <VehicleForm
         vehicle={view.kind === "edit" ? view.vehicle : null}
+        prefill={view.kind === "new" ? view.prefill : undefined}
         clients={clients.data ?? []}
         canImport={canImport}
         onDone={() => {
@@ -173,12 +191,20 @@ export default function VehiclesPage() {
               <th>Cor</th>
               <th>Proprietário</th>
               <th>RENAVAM</th>
-              {canWrite && <th className="w-20" />}
+              {canWrite && <th className="w-14" />}
             </tr>
           </thead>
           <tbody>
             {filtered.map((v) => (
-              <tr key={v.id}>
+              <tr
+                key={v.id}
+                className={canWrite ? "cursor-pointer" : undefined}
+                onClick={
+                  canWrite
+                    ? () => setView({ kind: "edit", vehicle: v })
+                    : undefined
+                }
+              >
                 <td>
                   {v.plate ? (
                     <PlateTag>{v.plate}</PlateTag>
@@ -200,19 +226,14 @@ export default function VehiclesPage() {
                 </td>
                 {canWrite && (
                   <td>
-                    <div className="flex justify-end gap-1">
-                      <button
-                        type="button"
-                        aria-label="Editar"
-                        onClick={() => setView({ kind: "edit", vehicle: v })}
-                        className="grid h-8 w-8 place-items-center rounded-[10px] text-text-3 hover:bg-surface-soft hover:text-text-1"
-                      >
-                        <Pencil size={16} />
-                      </button>
+                    <div className="flex justify-end">
                       <button
                         type="button"
                         aria-label="Excluir"
-                        onClick={() => remove(v)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          remove(v);
+                        }}
                         className="grid h-8 w-8 place-items-center rounded-[10px] text-text-3 hover:bg-danger-bg hover:text-danger"
                       >
                         <Trash2 size={16} />
@@ -231,19 +252,21 @@ export default function VehiclesPage() {
 
 function VehicleForm({
   vehicle,
+  prefill,
   clients,
   canImport,
   onDone,
   onCancel,
 }: {
   vehicle: Vehicle | null;
+  prefill?: Partial<CreateVehicleDTO>;
   clients: { id: number; name: string }[];
   canImport: boolean;
   onDone: () => void;
   onCancel: () => void;
 }) {
   const isEdit = vehicle != null;
-  const [mode, setMode] = useState<"plate" | "zeroKm">("plate");
+  const [mode, setMode] = useState<"plate" | "nfe" | "document">("plate");
   const [form, setForm] = useState<CreateVehicleDTO>(
     vehicle
       ? {
@@ -256,7 +279,7 @@ function VehicleForm({
           chassis: vehicle.chassis,
           clientId: vehicle.clientId,
         }
-      : emptyForm,
+      : { ...emptyForm, ...(prefill ?? {}) },
   );
   const [importing, setImporting] = useState(false);
   const [imported, setImported] = useState(false);
@@ -265,8 +288,9 @@ function VehicleForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const docRef = useRef<HTMLInputElement>(null);
 
-  const plateMode = mode === "plate";
+  const plateMode = mode !== "nfe";
 
   const set =
     (key: keyof CreateVehicleDTO) =>
@@ -291,6 +315,34 @@ function VehicleForm({
       applyImport(res.vehicle, res.warnings ?? []);
     } catch {
       setError("Falha ao importar a NF-e pelo PDF do DANFE.");
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  async function importByDocument(file: File) {
+    setImporting(true);
+    setError(null);
+    try {
+      const r = await parseVehicleDocument(file);
+      setForm((f) => ({
+        ...f,
+        plate: r.plate ? formatPlate(r.plate) : f.plate,
+        brand: r.brand ?? f.brand,
+        model: r.model ?? f.model,
+        fabricationAndModel: r.fabricationAndModel
+          ? maskYearModel(r.fabricationAndModel)
+          : f.fabricationAndModel,
+        color: r.color ?? f.color,
+        renavam: r.renavam ? r.renavam.replace(/\D/g, "") : f.renavam,
+        chassis: r.chassis ?? f.chassis,
+      }));
+      setWarnings([]);
+      setImported(true);
+    } catch {
+      setError(
+        "Não foi possível ler o documento. Envie um CRLV-e ou ATPV-e em PDF.",
+      );
     } finally {
       setImporting(false);
     }
@@ -341,16 +393,16 @@ function VehicleForm({
           <CardTitle>{isEdit ? "Editar veículo" : "Cadastrar veículo"}</CardTitle>
         </CardHeader>
         <CardBody className="flex flex-col gap-5">
-          {canImport && !isEdit && (
+          {!isEdit && (
             <Field>
               <Label>Tipo de cadastro</Label>
-              <div className="inline-flex gap-[5px] rounded-pill bg-track p-[5px]">
+              <div className="inline-flex flex-wrap gap-[5px] rounded-pill bg-track p-[5px]">
                 <button
                   type="button"
                   onClick={() => setMode("plate")}
                   className={
                     "flex items-center gap-[7px] rounded-pill px-[18px] py-2.5 text-[13.5px] font-semibold transition-all " +
-                    (plateMode
+                    (mode === "plate"
                       ? "bg-card text-text-1 shadow-raise [&_svg]:text-orange"
                       : "text-text-2 hover:text-text-1")
                   }
@@ -360,22 +412,80 @@ function VehicleForm({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setMode("zeroKm")}
+                  onClick={() => setMode("document")}
                   className={
                     "flex items-center gap-[7px] rounded-pill px-[18px] py-2.5 text-[13.5px] font-semibold transition-all " +
-                    (!plateMode
+                    (mode === "document"
                       ? "bg-card text-text-1 shadow-raise [&_svg]:text-orange"
                       : "text-text-2 hover:text-text-1")
                   }
                 >
-                  <ScanLine size={16} />
-                  Importar da NF-e
+                  <ScrollText size={16} />
+                  Importar de CRLV-e/ATPV-e
                 </button>
+                {canImport && (
+                  <button
+                    type="button"
+                    onClick={() => setMode("nfe")}
+                    className={
+                      "flex items-center gap-[7px] rounded-pill px-[18px] py-2.5 text-[13.5px] font-semibold transition-all " +
+                      (mode === "nfe"
+                        ? "bg-card text-text-1 shadow-raise [&_svg]:text-orange"
+                        : "text-text-2 hover:text-text-1")
+                    }
+                  >
+                    <ScanLine size={16} />
+                    Importar da NF-e
+                  </button>
+                )}
               </div>
             </Field>
           )}
 
-          {!plateMode && (
+          {mode === "document" && !isEdit && (
+            <div className="rounded-lg border border-tint-info-border bg-tint-info p-[18px]">
+              <div className="mb-1 flex items-center gap-2 text-link-blue">
+                <ScrollText size={16} />
+                <span className="text-[13.5px] font-bold">
+                  Importar de CRLV-e / ATPV-e
+                </span>
+              </div>
+              <p className="mb-3 text-[11.5px] text-text-3">
+                Envie o PDF do CRLV-e ou do ATPV-e para preencher os dados do
+                veículo automaticamente.
+              </p>
+
+              <button
+                type="button"
+                onClick={() => docRef.current?.click()}
+                disabled={importing}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-tint-info-border bg-card px-4 py-6 text-[13px] font-semibold text-link-blue transition-colors hover:bg-surface-soft disabled:opacity-60"
+              >
+                {importing ? <Spinner /> : <Upload size={18} />}
+                {importing ? "Lendo documento…" : "Enviar PDF do CRLV-e / ATPV-e"}
+              </button>
+              <input
+                ref={docRef}
+                type="file"
+                accept="application/pdf"
+                hidden
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) importByDocument(file);
+                  e.target.value = "";
+                }}
+              />
+
+              {imported && !importing && (
+                <div className="mt-3 flex items-center gap-1.5 text-[11.5px] font-semibold text-success">
+                  <CheckCircle2 size={15} />
+                  Dados importados do documento — confira e complete abaixo.
+                </div>
+              )}
+            </div>
+          )}
+
+          {mode === "nfe" && (
             <div className="rounded-lg border border-tint-info-border bg-tint-info p-[18px]">
               <div className="mb-1 flex items-center gap-2 text-link-blue">
                 <Info size={16} />
@@ -384,7 +494,7 @@ function VehicleForm({
                 </span>
               </div>
               <p className="mb-3 text-[11.5px] text-text-3">
-                Envie o PDF do DANFE da NF-e para preencher os dados do veículo
+                Envie o PDF da NF-e para preencher os dados do veículo
                 automaticamente.
               </p>
 
@@ -475,7 +585,7 @@ function VehicleForm({
                 </Field>
               ) : (
                 <Field>
-                  <Label required>Chassi (VIN)</Label>
+                  <Label>Chassi (VIN)</Label>
                   <Input
                     mono
                     value={form.chassis}
