@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Check, Pencil, Trash2, Sun, Moon, Wrench, X } from "lucide-react";
+import { Plus, Check, Trash2, Sun, Moon, Wrench, X } from "lucide-react";
 import { useResource } from "@/hooks/use-resource";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useConfirm } from "@/components/providers/confirm-provider";
@@ -219,31 +219,30 @@ function ServicesManager() {
             <tr>
               <th>Serviço</th>
               <th className="text-right">Preço</th>
-              <th className="w-24" />
+              <th className="w-14" />
             </tr>
           </thead>
           <tbody>
             {list.map((s) => (
-              <tr key={s.id}>
+              <tr
+                key={s.id}
+                className={canWrite ? "cursor-pointer" : undefined}
+                onClick={canWrite ? () => startEdit(s) : undefined}
+              >
                 <td className="font-semibold">{s.serviceName}</td>
                 <td className="text-right font-mono font-semibold">
                   {brl(s.price)}
                 </td>
                 <td>
                   {canWrite && (
-                  <div className="flex justify-end gap-1">
-                    <button
-                      type="button"
-                      aria-label="Editar"
-                      onClick={() => startEdit(s)}
-                      className="grid h-8 w-8 place-items-center rounded-[10px] text-text-3 hover:bg-surface-soft hover:text-text-1"
-                    >
-                      <Pencil size={15} />
-                    </button>
+                  <div className="flex justify-end">
                     <button
                       type="button"
                       aria-label="Excluir"
-                      onClick={() => remove(s)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        remove(s);
+                      }}
                       className="grid h-8 w-8 place-items-center rounded-[10px] text-text-3 hover:bg-danger-bg hover:text-danger"
                     >
                       <Trash2 size={15} />

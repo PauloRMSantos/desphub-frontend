@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Plus,
   Check,
@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   Printer,
   X,
+  Wallet,
 } from "lucide-react";
 import { useResource } from "@/hooks/use-resource";
 import {
@@ -22,6 +23,10 @@ import {
   getBudgets,
   createServiceOrder,
   updateServiceOrder,
+  deleteServiceOrder,
+  getExpenses,
+  createExpense,
+  deleteExpense,
 } from "@/lib/data";
 import type {
   AuthUser,
@@ -32,6 +37,7 @@ import type {
   ServiceOrder,
   OrderStatus,
   CreateServiceOrderItemDTO,
+  ExpenseItem,
 } from "@/types";
 import { ORDER_STATUS, ORDER_FLOW } from "@/config/status";
 import { brl, maskCpfCnpj, maskPhone } from "@/lib/format";
@@ -48,6 +54,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { usePageActions } from "@/components/shell/topbar-actions";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import { PrintBrand } from "@/components/print/print-brand";
 
 interface ItemRow {
@@ -58,6 +65,7 @@ interface ItemRow {
 
 export default function OrdersPage() {
   const { user, can } = useAuth();
+  const { confirm } = useConfirm();
   const canWrite = can("SERVICE_ORDERS_WRITE");
   const orders = useResource(getServiceOrders, []);
   const clients = useResource(getClients, []);
@@ -91,6 +99,18 @@ export default function OrdersPage() {
     const v = vehicles.data?.find((x) => x.id === id);
     return v?.plate || v?.model || `#${id}`;
   };
+
+  async function remove(o: ServiceOrder) {
+    const ok = await confirm({
+      title: "Excluir ordem de serviço",
+      message: `Excluir a OS "${o.code}"? Essa ação não pode ser desfeita.`,
+      confirmText: "Excluir",
+      tone: "danger",
+    });
+    if (!ok) return;
+    await deleteServiceOrder(o.id);
+    orders.reload();
+  }
 
   const list = orders.data ?? [];
   const filtered = useMemo(() => {
@@ -177,6 +197,7 @@ export default function OrdersPage() {
               <th>Veículo</th>
               <th>Status</th>
               <th className="text-right">Total</th>
+              {canWrite && <th className="w-14" />}
             </tr>
           </thead>
           <tbody>
@@ -202,6 +223,23 @@ export default function OrdersPage() {
                 <td className="text-right font-mono font-semibold">
                   {brl(o.total)}
                 </td>
+                {canWrite && (
+                  <td>
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        aria-label="Excluir"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          remove(o);
+                        }}
+                        className="grid h-8 w-8 place-items-center rounded-[10px] text-text-3 hover:bg-danger-bg hover:text-danger"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -325,6 +363,65 @@ function OrderForm({
 
   const selectedClient = clients.find((c) => c.id === clientId) ?? null;
   const selectedVehicle = vehicles.find((v) => v.id === vehicleId) ?? null;
+
+  const { can } = useAuth();
+  const canExpense = can("FINANCIAL_WRITE");
+  const [expName, setExpName] = useState("");
+  const [expAmount, setExpAmount] = useState("");
+  const [expDate, setExpDate] = useState(
+    () => new Date().toISOString().slice(0, 10),
+  );
+  const [osExpenses, setOsExpenses] = useState<ExpenseItem[]>([]);
+  const [expSaving, setExpSaving] = useState(false);
+  const [expError, setExpError] = useState<string | null>(null);
+
+  async function launchExpense() {
+    if (!expName.trim() || !expAmount) {
+      setExpError("Informe o nome e o valor da despesa.");
+      return;
+    }
+    if (!code.trim()) {
+      setExpError("Defina o código da OS antes de lançar despesas.");
+      return;
+    }
+    setExpSaving(true);
+    setExpError(null);
+    try {
+      const created = await createExpense({
+        description: `OS ${code.trim()} · ${expName.trim()}`,
+        amount: Number(expAmount),
+        date: expDate,
+        category: "Ordem de serviço",
+      });
+      if (created) setOsExpenses((p) => [created, ...p]);
+      setExpName("");
+      setExpAmount("");
+    } catch {
+      setExpError("Não foi possível lançar a despesa.");
+    } finally {
+      setExpSaving(false);
+    }
+  }
+
+  async function removeExpense(e: ExpenseItem) {
+    await deleteExpense(e.id);
+    setOsExpenses((p) => p.filter((x) => x.id !== e.id));
+  }
+
+  useEffect(() => {
+    if (!order || !canExpense) return;
+    let active = true;
+    const prefix = `OS ${order.code} · `;
+    getExpenses()
+      .then((all) => {
+        if (active)
+          setOsExpenses(all.filter((e) => e.description.startsWith(prefix)));
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [order, canExpense]);
 
   return (
     <div className="fade-in grid grid-cols-1 items-start gap-4 lg:grid-cols-[1fr_320px]">
@@ -562,6 +659,85 @@ function OrderForm({
             </tbody>
           </Table>
         </Card>
+
+        {canExpense && (
+          <Card>
+            <CardHeader>
+              <Wallet size={18} className="text-link-blue" />
+              <CardTitle>Despesas da OS</CardTitle>
+            </CardHeader>
+            <CardBody className="flex flex-col gap-3">
+              <p className="text-[12px] text-text-3">
+                As despesas lançadas aqui vão para o Financeiro com a descrição
+                “{code.trim() || "—"} · nome da despesa”.
+              </p>
+              <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-[1fr_150px_160px_auto]">
+                <Field>
+                  <Label required>Despesa</Label>
+                  <Input
+                    value={expName}
+                    onChange={(e) => setExpName(e.target.value)}
+                    placeholder="Ex.: taxa DETRAN, vistoria"
+                  />
+                </Field>
+                <Field>
+                  <Label required>Valor</Label>
+                  <Input
+                    mono
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={expAmount}
+                    onChange={(e) => setExpAmount(e.target.value)}
+                    placeholder="0,00"
+                  />
+                </Field>
+                <Field>
+                  <Label required>Data</Label>
+                  <Input
+                    type="date"
+                    value={expDate}
+                    onChange={(e) => setExpDate(e.target.value)}
+                  />
+                </Field>
+                <Button onClick={launchExpense} disabled={expSaving}>
+                  {expSaving ? <Spinner /> : <Plus size={16} />}
+                  Lançar
+                </Button>
+              </div>
+              {expError && (
+                <div className="text-[12px] font-medium text-danger">
+                  {expError}
+                </div>
+              )}
+              {osExpenses.length > 0 && (
+                <div className="flex flex-col divide-y divide-border">
+                  {osExpenses.map((e) => (
+                    <div
+                      key={e.id}
+                      className="flex items-center gap-2 py-2 text-[13px]"
+                    >
+                      <span className="flex-1 text-text-1">
+                        {e.description}
+                      </span>
+                      <span className="font-mono font-semibold">
+                        {brl(e.amount)}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label="Remover despesa"
+                        onClick={() => removeExpense(e)}
+                        className="grid h-8 w-8 place-items-center rounded-[10px] text-text-3 hover:bg-danger-bg hover:text-danger"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardBody>
+          </Card>
+        )}
       </div>
 
       <div className="lg:sticky lg:top-[92px]">

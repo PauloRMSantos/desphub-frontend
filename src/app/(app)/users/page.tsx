@@ -11,6 +11,8 @@ import {
   ChevronLeft,
   Ban,
   MailPen,
+  CheckSquare,
+  Square,
 } from "lucide-react";
 import { useResource } from "@/hooks/use-resource";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -385,7 +387,15 @@ function UserForm({
 
           {isEmployee && (
             <div>
-              <Label>Permissões</Label>
+              <div className="flex items-center">
+                <Label>Permissões</Label>
+                <AllPermissionsToggle
+                  selected={permissions}
+                  onSetAll={(checked) =>
+                    setPermissions(checked ? ALL_PERMISSIONS : [])
+                  }
+                />
+              </div>
               <div className="mt-2">
                 <PermissionPicker selected={permissions} onToggle={toggle} />
               </div>
@@ -454,6 +464,12 @@ function PermissionsEditor({
         <CardHeader>
           <ShieldCheck size={18} className="text-link-blue" />
           <CardTitle>Permissões — {user.name}</CardTitle>
+          <AllPermissionsToggle
+            selected={permissions}
+            onSetAll={(checked) =>
+              setPermissions(checked ? ALL_PERMISSIONS : [])
+            }
+          />
         </CardHeader>
         <CardBody className="flex flex-col gap-4">
           <PermissionPicker selected={permissions} onToggle={toggle} />
@@ -470,6 +486,32 @@ function PermissionsEditor({
         </CardBody>
       </Card>
     </div>
+  );
+}
+
+const ALL_PERMISSIONS: Permission[] = PERMISSION_GROUPS.flatMap((g) =>
+  g.items.map((i) => i.value),
+);
+
+function AllPermissionsToggle({
+  selected,
+  onSetAll,
+}: {
+  selected: Permission[];
+  onSetAll: (checked: boolean) => void;
+}) {
+  const allSelected = ALL_PERMISSIONS.every((p) => selected.includes(p));
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      className="ml-auto"
+      onClick={() => onSetAll(!allSelected)}
+    >
+      {allSelected ? <Square size={15} /> : <CheckSquare size={15} />}
+      {allSelected ? "Desmarcar todas" : "Marcar todas"}
+    </Button>
   );
 }
 
