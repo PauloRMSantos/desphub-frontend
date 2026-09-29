@@ -71,6 +71,11 @@ export default function VehiclesPage() {
   const [query, setQuery] = useState("");
 
   useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("q");
+    if (q) setQuery(q);
+  }, []);
+
+  useEffect(() => {
     if (!canWrite) return;
     try {
       const raw = sessionStorage.getItem(VEHICLE_PREFILL_KEY);

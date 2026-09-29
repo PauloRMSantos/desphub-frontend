@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Plus,
   Pencil,
@@ -49,6 +49,11 @@ export default function ClientsPage() {
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [mode, setMode] = useState<Mode>("view");
+
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("q");
+    if (q) setQuery(q);
+  }, []);
 
   usePageActions(
     () =>
