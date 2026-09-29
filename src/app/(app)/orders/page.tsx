@@ -76,6 +76,11 @@ export default function OrdersPage() {
   const [editing, setEditing] = useState<ServiceOrder | null>(null);
   const [query, setQuery] = useState("");
 
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("q");
+    if (q) setQuery(q);
+  }, []);
+
   const authUserName = user?.name ?? "";
   usePageActions(
     () =>

@@ -71,6 +71,11 @@ export default function VehiclesPage() {
   const [query, setQuery] = useState("");
 
   useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("q");
+    if (q) setQuery(q);
+  }, []);
+
+  useEffect(() => {
     if (!canWrite) return;
     try {
       const raw = sessionStorage.getItem(VEHICLE_PREFILL_KEY);
@@ -290,8 +295,6 @@ function VehicleForm({
   const fileRef = useRef<HTMLInputElement>(null);
   const docRef = useRef<HTMLInputElement>(null);
 
-  const plateMode = mode !== "nfe";
-
   const set =
     (key: keyof CreateVehicleDTO) =>
     (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -355,7 +358,7 @@ function VehicleForm({
     setError(null);
     const payload = {
       ...form,
-      plate: plateMode ? form.plate?.trim() || undefined : undefined,
+      plate: form.plate?.trim() || undefined,
       renavam: form.renavam?.trim() || undefined,
       clientId: form.clientId ?? undefined,
     };
@@ -567,35 +570,21 @@ function VehicleForm({
             <FieldsetLabel>Dados do veículo</FieldsetLabel>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              {plateMode ? (
-                <Field>
-                  <Label required>Placa</Label>
-                  <Input
-                    mono
-                    className="uppercase"
-                    value={form.plate ?? ""}
-                    onChange={(e) =>
-                      setForm((f) => ({
-                        ...f,
-                        plate: formatPlate(e.target.value),
-                      }))
-                    }
-                    placeholder="ABC1D23"
-                  />
-                </Field>
-              ) : (
-                <Field>
-                  <Label>Chassi (VIN)</Label>
-                  <Input
-                    mono
-                    value={form.chassis}
-                    onChange={set("chassis")}
-                    state={missing("chassis") ? "error" : okState(form.chassis)}
-                    placeholder="9BWZZZ..."
-                  />
-                  {missing("chassis") && <ErrorText>Campo obrigatório</ErrorText>}
-                </Field>
-              )}
+              <Field>
+                <Label>Placa</Label>
+                <Input
+                  mono
+                  className="uppercase"
+                  value={form.plate ?? ""}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      plate: formatPlate(e.target.value),
+                    }))
+                  }
+                  placeholder="ABC1D23 (deixe vazio se 0 km)"
+                />
+              </Field>
               <Field>
                 <Label required>Marca</Label>
                 <Input
@@ -655,25 +644,22 @@ function VehicleForm({
                   mono
                   value={form.renavam ?? ""}
                   onChange={set("renavam")}
-                  placeholder={plateMode ? "00000000000" : "Após emplacamento"}
-                  disabled={!plateMode && !form.renavam}
+                  placeholder="00000000000"
                 />
               </Field>
             </div>
 
-            {plateMode && (
-              <Field>
-                <Label required>Chassi (VIN)</Label>
-                <Input
-                  mono
-                  value={form.chassis}
-                  onChange={set("chassis")}
-                  state={missing("chassis") ? "error" : okState(form.chassis)}
-                  placeholder="9BWZZZ..."
-                />
-                {missing("chassis") && <ErrorText>Campo obrigatório</ErrorText>}
-              </Field>
-            )}
+            <Field>
+              <Label required>Chassi (VIN)</Label>
+              <Input
+                mono
+                value={form.chassis}
+                onChange={set("chassis")}
+                state={missing("chassis") ? "error" : okState(form.chassis)}
+                placeholder="9BWZZZ..."
+              />
+              {missing("chassis") && <ErrorText>Campo obrigatório</ErrorText>}
+            </Field>
           </div>
 
           {error && <ErrorText>{error}</ErrorText>}

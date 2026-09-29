@@ -34,20 +34,6 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
         officeScoped: true,
       },
       {
-        href: "/clients",
-        label: "Clientes",
-        icon: Users,
-        permission: "CLIENTS_READ",
-        officeScoped: true,
-      },
-      {
-        href: "/vehicles",
-        label: "Veículos",
-        icon: Car,
-        permission: "VEHICLES_READ",
-        officeScoped: true,
-      },
-      {
         href: "/lookup",
         label: "Consulta de Veículo",
         icon: CarFront,
@@ -66,6 +52,20 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
         label: "Orçamentos",
         icon: ClipboardList,
         permission: "BUDGETS_READ",
+        officeScoped: true,
+      },
+      {
+        href: "/clients",
+        label: "Clientes",
+        icon: Users,
+        permission: "CLIENTS_READ",
+        officeScoped: true,
+      },
+      {
+        href: "/vehicles",
+        label: "Veículos",
+        icon: Car,
+        permission: "VEHICLES_READ",
         officeScoped: true,
       },
       {
