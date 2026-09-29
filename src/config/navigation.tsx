@@ -5,6 +5,7 @@ import {
   CarFront,
   FileText,
   ClipboardList,
+  FileSignature,
   Wallet,
   Settings,
   UserCog,
@@ -65,6 +66,13 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
         label: "Orçamentos",
         icon: ClipboardList,
         permission: "BUDGETS_READ",
+        officeScoped: true,
+      },
+      {
+        href: "/documents",
+        label: "Documentos",
+        icon: FileSignature,
+        permission: "DOCUMENTS_READ",
         officeScoped: true,
       },
       {
@@ -132,6 +140,11 @@ export const PAGE_META: Record<string, PageMeta> = {
     title: "Orçamentos",
     subtitle: "Propostas enviadas aos clientes.",
     breadcrumb: ["Gestão", "Orçamentos"],
+  },
+  "/documents": {
+    title: "Documentos",
+    subtitle: "Modelos, geração e histórico de documentos.",
+    breadcrumb: ["Operação", "Documentos"],
   },
   "/finance": {
     title: "Financeiro",

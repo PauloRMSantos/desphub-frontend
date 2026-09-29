@@ -48,6 +48,20 @@ export const PERMISSION_GROUPS: {
     ],
   },
   {
+    label: "Modelos de documento",
+    items: [
+      { value: "TEMPLATES_READ", label: "Ver" },
+      { value: "TEMPLATES_WRITE", label: "Editar" },
+    ],
+  },
+  {
+    label: "Documentos",
+    items: [
+      { value: "DOCUMENTS_READ", label: "Ver / reimprimir" },
+      { value: "DOCUMENTS_WRITE", label: "Gerar" },
+    ],
+  },
+  {
     label: "Operação",
     items: [
       { value: "VEHICLE_QUERY", label: "Consulta DETRAN" },

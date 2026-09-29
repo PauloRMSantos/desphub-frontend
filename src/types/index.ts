@@ -250,6 +250,10 @@ export type Permission =
   | "SERVICE_ORDERS_WRITE"
   | "FINANCIAL_READ"
   | "FINANCIAL_WRITE"
+  | "TEMPLATES_READ"
+  | "TEMPLATES_WRITE"
+  | "DOCUMENTS_READ"
+  | "DOCUMENTS_WRITE"
   | "VEHICLE_QUERY"
   | "NFE_IMPORT"
   | "USERS_MANAGE";
@@ -352,4 +356,127 @@ export interface OrderStatusCount {
   status: OrderStatus;
   label: string;
   value: number;
+}
+
+export type TemplateCategory = "PROCURACAO" | "DECLARACAO" | "OUTRO";
+export type GroupSelectionType = "SINGLE" | "MULTI";
+export type VariableSource =
+  | "CLIENT"
+  | "VEHICLE"
+  | "OFFICE"
+  | "USER"
+  | "MANUAL";
+
+export interface ClauseBlock {
+  id: number;
+  label: string;
+  body: string;
+  sortOrder: number;
+  defaultSelected?: boolean;
+}
+
+export interface TemplateGroup {
+  id?: number;
+  key: string;
+  label: string;
+  selectionType: GroupSelectionType;
+  required: boolean;
+  sortOrder: number;
+  blocks: ClauseBlock[];
+}
+
+export interface TemplateVariable {
+  key: string;
+  label: string;
+  source: VariableSource;
+  sourceField?: string | null;
+  required: boolean;
+}
+
+export interface Template {
+  id: number;
+  name: string;
+  category: TemplateCategory;
+  active: boolean;
+  fixedBlocks: ClauseBlock[];
+  groups: TemplateGroup[];
+  variables: TemplateVariable[];
+}
+
+export interface TemplateSummary {
+  id: number;
+  name: string;
+  category: TemplateCategory;
+  active: boolean;
+}
+
+export interface CreateClauseBlockDTO {
+  label: string;
+  body: string;
+  sortOrder?: number;
+  defaultSelected?: boolean;
+}
+
+export interface CreateTemplateGroupDTO {
+  key: string;
+  label: string;
+  selectionType: GroupSelectionType;
+  required?: boolean;
+  sortOrder?: number;
+  blocks: CreateClauseBlockDTO[];
+}
+
+export interface CreateTemplateVariableDTO {
+  key: string;
+  label: string;
+  source: VariableSource;
+  sourceField?: string | null;
+  required?: boolean;
+}
+
+export interface CreateTemplateDTO {
+  name: string;
+  category: TemplateCategory;
+  active?: boolean;
+  fixedBlocks: CreateClauseBlockDTO[];
+  groups: CreateTemplateGroupDTO[];
+  variables: CreateTemplateVariableDTO[];
+}
+
+export interface VariableCatalogEntry {
+  source: VariableSource;
+  sourceField: string;
+  suggestedKey: string;
+  label: string;
+}
+
+export interface GenerateDocumentDTO {
+  templateId: number;
+  clientId: number;
+  vehicleId?: number | null;
+  selectedBlockIds: number[];
+  manualValues: Record<string, string>;
+}
+
+export interface GeneratedDocumentSummary {
+  id: number;
+  templateName: string;
+  clientName: string;
+  createdAt: string;
+}
+
+export interface GeneratedDocument extends GeneratedDocumentSummary {
+  resolvedContent: string;
+  clientId?: number;
+  templateId?: number;
+}
+
+export interface AiFromTextDTO {
+  rawText: string;
+  category?: TemplateCategory;
+}
+
+export interface AiFromDescriptionDTO {
+  description: string;
+  category?: TemplateCategory;
 }
