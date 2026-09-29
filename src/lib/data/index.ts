@@ -51,6 +51,22 @@ export {
 } from "./auth";
 export { getGovbrSession, issuePairingToken } from "./rpa";
 export {
+  getTemplates,
+  getTemplate,
+  createTemplate,
+  updateTemplate,
+  deleteTemplate,
+  getVariableCatalog,
+  aiTemplateFromText,
+  aiTemplateFromDescription,
+} from "./templates";
+export {
+  generateDocument,
+  getDocuments,
+  getDocument,
+  downloadDocumentPdf,
+} from "./documents";
+export {
   getOffices,
   getOffice,
   createOffice,

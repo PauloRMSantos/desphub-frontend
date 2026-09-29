@@ -88,6 +88,14 @@ export async function apiSend<T>(
   return text ? (JSON.parse(text) as T) : null;
 }
 
+export async function apiGetBlob(path: string): Promise<Blob> {
+  const res = await fetch(`/api${path}`, {
+    headers: authHeaders({}),
+  });
+  if (!res.ok) await fail(res, `GET ${path} failed`);
+  return res.blob();
+}
+
 export async function apiUpload<T>(
   path: string,
   formData: FormData,

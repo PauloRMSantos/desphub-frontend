@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +22,12 @@ export function Modal({
   footer?: ReactNode;
   size?: "sm" | "md" | "lg";
 }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -30,12 +37,12 @@ export function Modal({
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
   const width =
     size === "sm" ? "max-w-sm" : size === "lg" ? "max-w-2xl" : "max-w-md";
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
       onClick={onClose}
@@ -44,13 +51,13 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         className={cn(
-          "fade-in w-full overflow-hidden rounded-card border border-border bg-card shadow-pop",
+          "fade-in flex max-h-[90vh] w-full flex-col overflow-hidden rounded-card border border-border bg-card shadow-pop",
           width,
         )}
         onClick={(e) => e.stopPropagation()}
       >
         {(title || icon) && (
-          <div className="flex items-center gap-2.5 border-b border-border px-5 py-4">
+          <div className="flex shrink-0 items-center gap-2.5 border-b border-border px-5 py-4">
             {icon}
             <span className="font-head text-[17px] font-bold text-text-1">
               {title}
@@ -65,15 +72,16 @@ export function Modal({
             </button>
           </div>
         )}
-        <div className="px-5 py-4 text-[13.5px] leading-relaxed text-text-2">
+        <div className="flex-1 overflow-y-auto px-5 py-4 text-[13.5px] leading-relaxed text-text-2">
           {children}
         </div>
         {footer && (
-          <div className="flex justify-end gap-2.5 border-t border-border px-5 py-3.5">
+          <div className="flex shrink-0 justify-end gap-2.5 border-t border-border px-5 py-3.5">
             {footer}
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
