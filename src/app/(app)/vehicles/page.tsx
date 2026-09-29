@@ -582,7 +582,7 @@ function VehicleForm({
                       plate: formatPlate(e.target.value),
                     }))
                   }
-                  placeholder="ABC1D23 (deixe vazio se 0 km)"
+                  placeholder="ABC1D23"
                 />
               </Field>
               <Field>
@@ -656,7 +656,7 @@ function VehicleForm({
                 value={form.chassis}
                 onChange={set("chassis")}
                 state={missing("chassis") ? "error" : okState(form.chassis)}
-                placeholder="9BWZZZ..."
+                placeholder="9BWZZZ... (apenas 0km)"
               />
               {missing("chassis") && <ErrorText>Campo obrigatório</ErrorText>}
             </Field>
