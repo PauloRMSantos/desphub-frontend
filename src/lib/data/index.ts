@@ -12,6 +12,7 @@ export {
   updateVehicle,
   deleteVehicle,
   queryVehicle,
+  queryVehicleSc,
   importNfeByPdf,
   parseVehicleDocument,
 } from "./vehicles";

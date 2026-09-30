@@ -14,14 +14,20 @@ import {
   Plus,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { queryVehicle, getVehicles } from "@/lib/data";
+import { queryVehicle, queryVehicleSc, getVehicles } from "@/lib/data";
+import { runScQuery, connectSc, waitScConnected } from "@/lib/govbr-courier";
 import { useAuth } from "@/components/auth/auth-provider";
-import type { CreateVehicleDTO, VehicleQueryResponse } from "@/types";
+import type {
+  CreateVehicleDTO,
+  QueryState,
+  VehicleQueryResponse,
+} from "@/types";
 import {
   formatPlate,
   brl,
   brlDecimal,
   formatDateTimeBR,
+  isoToBR,
   maskCpfCnpj,
   onlyDigits,
 } from "@/lib/format";
@@ -32,6 +38,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { Segmented } from "@/components/ui/segmented";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePageActions } from "@/components/shell/topbar-actions";
@@ -41,9 +48,30 @@ type Phase = "idle" | "loading" | "done" | "error";
 
 const RESTRICTION_LABEL: Record<string, string> = {
   THEFT_ROBBERY: "Furto / Roubo",
+  THEFT: "Furto / Roubo",
+  ROBBERY: "Furto / Roubo",
   IMPOUNDED: "Apreendido",
   ADMINISTRATIVA: "Administrativa",
+  ADMINISTRATIVE: "Administrativa",
+  SALE_RESTRICTION: "Alienação fiduciária",
+  SNG_PENDING: "Baixa de alienação pendente (SNG)",
+  JUDICIAL: "Restrição judicial",
+  TRIBUTARY: "Restrição tributária",
+  ENVIRONMENTAL: "Restrição ambiental",
 };
+
+function restrictionLabel(type: string): string {
+  if (RESTRICTION_LABEL[type]) return RESTRICTION_LABEL[type];
+  if (/^[A-Z0-9_]+$/.test(type)) {
+    return type
+      .toLowerCase()
+      .split("_")
+      .filter(Boolean)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ");
+  }
+  return type;
+}
 
 function formatOwnerCpf(value: string | null | undefined): string {
   if (!value || value.includes("*")) return value ?? "";
@@ -71,9 +99,11 @@ function toVehicleDraft(data: VehicleQueryResponse): Partial<CreateVehicleDTO> {
 }
 
 export default function LookupPage() {
+  const [uf, setUf] = useState<QueryState>("RS");
   const [plate, setPlate] = useState("");
   const [renavam, setRenavam] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [result, setResult] = useState<VehicleQueryResponse | null>(null);
   const vehicles = useResource(getVehicles, []);
   const savedVehicles = (vehicles.data ?? []).filter((v) => v.plate);
@@ -90,6 +120,7 @@ export default function LookupPage() {
     setRenavam("");
     setResult(null);
     setPhase("idle");
+    setErrorMsg(null);
   }
 
   usePageActions(
@@ -106,8 +137,36 @@ export default function LookupPage() {
     if (plate.replace(/\W/g, "").length < 7) return;
     setPhase("loading");
     setResult(null);
+    setErrorMsg(null);
     try {
-      const res = await queryVehicle(plate, renavam || undefined);
+      let res: VehicleQueryResponse;
+      if (uf === "SC") {
+        let cap = await runScQuery(plate, renavam);
+        if (!cap.ok && cap.error === "sc-not-connected") {
+          // Abre a janela do DETRAN-SC; aguarda o login e continua sozinha.
+          await connectSc();
+          const connected = await waitScConnected(180000);
+          if (!connected) {
+            setErrorMsg(
+              "Não detectamos o login no DETRAN-SC. Faça login na janela que abriu (via gov.br) e consulte novamente.",
+            );
+            setPhase("error");
+            return;
+          }
+          cap = await runScQuery(plate, renavam);
+        }
+        if (!cap.ok) {
+          setErrorMsg(
+            cap.error ||
+              "Não foi possível capturar os dados no DETRAN-SC. Verifique se a extensão está instalada e se você está logado no DETRAN-SC.",
+          );
+          setPhase("error");
+          return;
+        }
+        res = await queryVehicleSc(plate, renavam || undefined, cap.payload);
+      } else {
+        res = await queryVehicle(plate, renavam || undefined, "RS");
+      }
       setResult(res);
       setPhase("done");
     } catch {
@@ -137,7 +196,7 @@ export default function LookupPage() {
                 Consulta de Veículo
               </div>
               <div className="mt-1 text-[13px] text-[#9DB4CE]">
-                Busca de veículos do RS por Placa e RENAVAM
+                Busca de veículos (RS e SC) por placa e RENAVAM
               </div>
             </div>
           </div>
@@ -163,6 +222,20 @@ export default function LookupPage() {
               </Select>
             </div>
           )}
+
+          <div className="mb-5">
+            <Label>Estado (UF)</Label>
+            <div className="mt-2">
+              <Segmented
+                value={uf}
+                onChange={setUf}
+                options={[
+                  { value: "RS", label: "Rio Grande do Sul" },
+                  { value: "SC", label: "Santa Catarina" },
+                ]}
+              />
+            </div>
+          </div>
 
           <div className="grid grid-cols-1 items-end gap-5 sm:grid-cols-[auto_1fr]">
             <div>
@@ -233,7 +306,8 @@ export default function LookupPage() {
                 Não foi possível concluir a consulta
               </div>
               <div className="text-[13px] text-text-2">
-                Verifique a placa e tente novamente em instantes.
+                {errorMsg ??
+                  "Verifique a placa e tente novamente em instantes."}
               </div>
             </div>
             <Button variant="ghost" size="sm" className="ml-auto" onClick={consult}>
@@ -274,10 +348,22 @@ function LookupResult({ data }: { data: VehicleQueryResponse }) {
         ["Município / UF", `${v.city} / ${v.plateState}`],
         ["Espécie", v.species],
         ["Tipo", v.type],
+        ...((v.category
+          ? [["Categoria", v.category]]
+          : []) as [string, string][]),
+        ...((v.fuel ? [["Combustível", v.fuel]] : []) as [string, string][]),
         ["RENAVAM", v.renavam, true],
+        ...((v.previousPlate
+          ? [["Placa anterior", v.previousPlate, true]]
+          : []) as [string, string, boolean][]),
         ["Chassi (VIN)", v.chassis, true],
         ["Situação RENAVAM", v.renavamStatus],
-        ["CPF do proprietário", formatOwnerCpf(v.ownerCpf), true],
+        ...((v.ownerName
+          ? [["Proprietário", v.ownerName]]
+          : []) as [string, string][]),
+        ...((v.ownerCpf
+          ? [["CPF do proprietário", formatOwnerCpf(v.ownerCpf), true]]
+          : []) as [string, string, boolean][]),
       ]
     : [];
 
@@ -386,7 +472,7 @@ function LookupResult({ data }: { data: VehicleQueryResponse }) {
                 {data.restrictions.map((r, i) => (
                   <li key={i} className="text-[13px] text-text-1">
                     <span className="font-semibold">
-                      {RESTRICTION_LABEL[r.type] ?? r.type}
+                      {restrictionLabel(r.type)}
                     </span>
                     {r.description ? ` — ${r.description}` : ""}
                   </li>
@@ -454,6 +540,58 @@ function LookupResult({ data }: { data: VehicleQueryResponse }) {
             </div>
           </Section>
         ) : null}
+
+        {(data.fines?.length ?? 0) > 0 && (
+          <Section title="Multas / Infrações">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[680px] text-[13px]">
+                <thead>
+                  <tr className="text-left align-bottom text-text-3">
+                    <th className="py-1.5 pr-4 font-semibold">Descrição</th>
+                    <th className="whitespace-nowrap py-1.5 pr-4 font-semibold">
+                      Data
+                    </th>
+                    <th className="py-1.5 pr-4 font-semibold">Local</th>
+                    <th className="whitespace-nowrap py-1.5 pr-4 font-semibold">
+                      Situação
+                    </th>
+                    <th className="whitespace-nowrap py-1.5 text-right font-semibold">
+                      Valor
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.fines?.map((f, i) => (
+                    <tr key={i} className="border-t border-border align-top">
+                      <td className="py-2.5 pr-4">
+                        <div className="font-medium text-text-1">
+                          {f.description || "—"}
+                        </div>
+                        {f.notice && (
+                          <div className="mt-0.5 font-mono text-[11.5px] text-text-3">
+                            {f.notice}
+                          </div>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap py-2.5 pr-4 font-mono text-[12.5px] text-text-2">
+                        {f.date ? isoToBR(f.date.slice(0, 10)) : "—"}
+                      </td>
+                      <td className="max-w-[240px] py-2.5 pr-4 text-text-2">
+                        {f.location || "—"}
+                      </td>
+                      <td className="whitespace-nowrap py-2.5 pr-4 text-text-2">
+                        {f.situation || f.status || "—"}
+                      </td>
+                      <td className="whitespace-nowrap py-2.5 text-right font-mono font-semibold">
+                        {brlDecimal(f.amount)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Section>
+        )}
 
         {(data.taxes?.length ?? 0) > 0 && (
           <Section title="Histórico de IPVA">

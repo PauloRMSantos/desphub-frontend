@@ -153,6 +153,7 @@ export type UpdateExpenseItemDTO = CreateExpenseItemDTO;
 
 export interface VehicleData {
   plate: string;
+  previousPlate?: string;
   renavam: string;
   chassis: string;
   makeModel: string;
@@ -161,10 +162,25 @@ export interface VehicleData {
   color: string;
   type: string;
   species: string;
+  category?: string;
+  fuel?: string;
   city: string;
   plateState: string;
   renavamStatus: string;
+  ownerName?: string;
   ownerCpf: string;
+}
+
+export type QueryState = "RS" | "SC";
+
+export interface Fine {
+  notice?: string;
+  description?: string;
+  date?: string;
+  location?: string;
+  amount?: string;
+  situation?: string;
+  status?: string;
 }
 
 export interface Licensing {
@@ -231,6 +247,7 @@ export interface VehicleQueryResponse {
   specialCharacteristics?: SpecialCharacteristic[];
   debts?: Debt[];
   taxes?: Tax[];
+  fines?: Fine[];
   status: string;
   errors?: StepError[];
 }

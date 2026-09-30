@@ -2,6 +2,7 @@ import type {
   CreateVehicleDTO,
   NfeImportResponse,
   UpdateVehicleDTO,
+  QueryState,
   Vehicle,
   VehicleDocumentParseResponse,
   VehicleQueryResponse,
@@ -31,8 +32,27 @@ export function deleteVehicle(id: number) {
 export function queryVehicle(
   plate?: string,
   renavam?: string,
+  state?: QueryState,
 ): Promise<VehicleQueryResponse> {
-  return apiGet<VehicleQueryResponse>("/vehicles/query", { plate, renavam });
+  return apiGet<VehicleQueryResponse>("/vehicles/query", {
+    plate,
+    renavam,
+    state,
+  });
+}
+
+export async function queryVehicleSc(
+  plate: string | undefined,
+  renavam: string | undefined,
+  payload: unknown,
+): Promise<VehicleQueryResponse> {
+  const res = await apiSend<VehicleQueryResponse>("POST", "/vehicles/query", {
+    plate: plate || undefined,
+    renavam: renavam || undefined,
+    state: "SC",
+    payload,
+  });
+  return res as VehicleQueryResponse;
 }
 
 export function importNfeByPdf(file: File): Promise<NfeImportResponse> {
