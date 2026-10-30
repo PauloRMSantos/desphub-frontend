@@ -15,14 +15,17 @@ import {
 } from "lucide-react";
 import { useResource } from "@/hooks/use-resource";
 import { useConfirm } from "@/components/providers/confirm-provider";
+import { useToast } from "@/components/providers/toast-provider";
 import {
   createTemplate,
   updateTemplate,
   getVariableCatalog,
+  errorDetail,
 } from "@/lib/data";
 import type {
   CreateTemplateDTO,
   GroupSelectionType,
+  PartyRole,
   Template,
   TemplateCategory,
   TemplateVariable,
@@ -30,12 +33,13 @@ import type {
 } from "@/types";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Field, Label, ErrorText } from "@/components/ui/field";
+import { Field, Label } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
 
 const CATEGORY_OPTIONS: { value: TemplateCategory; label: string }[] = [
   { value: "PROCURACAO", label: "Procuração" },
@@ -50,6 +54,17 @@ const SOURCE_LABEL: Record<VariableSource, string> = {
   USER: "Usuário",
   MANUAL: "Manual",
 };
+
+const PARTY_ROLE_LABEL: Record<PartyRole, string> = {
+  OUTORGANTE: "Outorgante",
+  OUTORGADO: "Outorgado",
+};
+
+function suggestedPartyRole(source: VariableSource): PartyRole | null {
+  if (source === "CLIENT") return "OUTORGANTE";
+  if (source === "OFFICE" || source === "USER") return "OUTORGADO";
+  return null;
+}
 
 let uidCounter = 0;
 const uid = () => `u${++uidCounter}`;
@@ -125,6 +140,7 @@ function buildVariables(src?: SourceTemplate): LocalVariable[] {
     source: v.source,
     sourceField: v.sourceField ?? null,
     required: v.required ?? false,
+    partyRole: v.partyRole ?? null,
   }));
 }
 
@@ -152,9 +168,9 @@ export function TemplateEditor({
     buildVariables(source),
   );
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const { confirm } = useConfirm();
+  const toast = useToast();
   const catalog = useResource(getVariableCatalog, []);
 
   function move(i: number, dir: -1 | 1) {
@@ -277,17 +293,28 @@ export function TemplateEditor({
   }
 
   function addVariable(v?: Partial<LocalVariable>) {
-    setVariables((p) => [
-      ...p,
-      {
-        uid: uid(),
-        key: v?.key ?? "",
-        label: v?.label ?? "",
-        source: v?.source ?? "MANUAL",
-        sourceField: v?.sourceField ?? null,
-        required: v?.required ?? false,
-      },
-    ]);
+    setVariables((p) => {
+      const source = v?.source ?? "MANUAL";
+      let partyRole = v?.partyRole ?? null;
+      if (!partyRole && category === "PROCURACAO") {
+        const suggestion = suggestedPartyRole(source);
+        if (suggestion && !p.some((x) => x.partyRole === suggestion)) {
+          partyRole = suggestion;
+        }
+      }
+      return [
+        ...p,
+        {
+          uid: uid(),
+          key: v?.key ?? "",
+          label: v?.label ?? "",
+          source,
+          sourceField: v?.sourceField ?? null,
+          required: v?.required ?? false,
+          partyRole,
+        },
+      ];
+    });
   }
 
   function patchVariable(i: number, patch: Partial<LocalVariable>) {
@@ -345,28 +372,43 @@ export function TemplateEditor({
         source: v.source,
         sourceField: v.source === "MANUAL" ? null : v.sourceField || null,
         required: v.required,
+        partyRole: category === "PROCURACAO" ? v.partyRole ?? null : null,
       })),
     };
   }
 
   async function submit() {
     if (!name.trim()) {
-      setError("Informe o nome do modelo.");
+      toast.error("Campo obrigatório faltando", "nome do modelo");
       return;
     }
     if (sections.length === 0) {
-      setError("Adicione ao menos um bloco.");
+      toast.error("Adicione ao menos um bloco");
       return;
     }
+    if (category === "PROCURACAO") {
+      const hasOutorgante = variables.some((v) => v.partyRole === "OUTORGANTE");
+      const hasOutorgado = variables.some((v) => v.partyRole === "OUTORGADO");
+      if (!hasOutorgante || !hasOutorgado) {
+        toast.error(
+          "Procuração incompleta",
+          "Marque uma variável como Outorgante e outra como Outorgado.",
+        );
+        return;
+      }
+    }
     setSaving(true);
-    setError(null);
     const payload = buildPayload();
     try {
       if (template) await updateTemplate(template.id, payload);
       else await createTemplate(payload);
+      toast.success(
+        template ? "Modelo atualizado" : "Modelo criado",
+        payload.name,
+      );
       onDone();
-    } catch {
-      setError("Não foi possível salvar o modelo.");
+    } catch (err) {
+      toast.error("Não foi possível salvar o modelo", errorDetail(err));
       setSaving(false);
     }
   }
@@ -395,6 +437,7 @@ export function TemplateEditor({
           <Field>
             <Label>Categoria</Label>
             <Select
+              searchable={false}
               value={category}
               onChange={(e) => setCategory(e.target.value as TemplateCategory)}
             >
@@ -509,6 +552,7 @@ export function TemplateEditor({
                       placeholder="chave (ex.: transferencia)"
                     />
                     <Select
+                      searchable={false}
                       value={s.selectionType}
                       onChange={(e) =>
                         patchSection(i, {
@@ -646,7 +690,12 @@ export function TemplateEditor({
               {variables.map((v, i) => (
                 <div
                   key={v.uid}
-                  className="grid grid-cols-1 items-center gap-2 rounded-md border border-border p-2.5 sm:grid-cols-[160px_1fr_130px_90px_auto]"
+                  className={cn(
+                    "grid grid-cols-1 items-center gap-2 rounded-md border border-border p-2.5",
+                    category === "PROCURACAO"
+                      ? "sm:grid-cols-[150px_1fr_120px_150px_80px_auto]"
+                      : "sm:grid-cols-[160px_1fr_130px_90px_auto]",
+                  )}
                 >
                   <Input
                     mono
@@ -665,6 +714,26 @@ export function TemplateEditor({
                       ? ` · ${v.sourceField}`
                       : ""}
                   </span>
+                  {category === "PROCURACAO" && (
+                    <Select
+                      searchable={false}
+                      sorted={false}
+                      value={v.partyRole ?? ""}
+                      onChange={(e) =>
+                        patchVariable(i, {
+                          partyRole: (e.target.value || null) as PartyRole | null,
+                        })
+                      }
+                    >
+                      <option value="">Sem papel</option>
+                      <option value="OUTORGANTE">
+                        {PARTY_ROLE_LABEL.OUTORGANTE}
+                      </option>
+                      <option value="OUTORGADO">
+                        {PARTY_ROLE_LABEL.OUTORGADO}
+                      </option>
+                    </Select>
+                  )}
                   <label className="flex items-center gap-1.5 text-[12px] text-text-3">
                     <input
                       type="checkbox"
@@ -689,8 +758,6 @@ export function TemplateEditor({
           )}
         </CardBody>
       </Card>
-
-      {error && <ErrorText>{error}</ErrorText>}
 
       <div className="flex justify-end gap-3">
         <Button variant="ghost" onClick={onCancel} disabled={saving}>

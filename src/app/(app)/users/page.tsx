@@ -24,6 +24,7 @@ import {
   setOfficeUserActive,
   deleteOfficeUser,
   resetOfficeUserPassword,
+  errorDetail,
 } from "@/lib/data";
 import type { CreateOfficeUserDTO, OfficeUser, Permission, Role } from "@/types";
 import { PERMISSION_GROUPS } from "@/config/permissions";
@@ -39,6 +40,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { usePageActions } from "@/components/shell/topbar-actions";
 import { useConfirm } from "@/components/providers/confirm-provider";
+import { useToast } from "@/components/providers/toast-provider";
 import { cn } from "@/lib/utils";
 
 const ROLE_LABEL: Record<Role, string> = {
@@ -52,6 +54,7 @@ type View = "list" | "new" | "perms";
 export default function UsersPage() {
   const { user, can, isAdmin } = useAuth();
   const { confirm, notify } = useConfirm();
+  const toast = useToast();
   const allowed = can("USERS_MANAGE");
   const newRole: Role = isAdmin ? "OFFICE_OWNER" : "EMPLOYEE";
 
@@ -127,8 +130,16 @@ export default function UsersPage() {
   }
 
   async function toggleActive(u: OfficeUser) {
-    await setOfficeUserActive(officeId, u.id, !u.active);
-    users.reload();
+    try {
+      await setOfficeUserActive(officeId, u.id, !u.active);
+      users.reload();
+      toast.success(u.active ? "Usuário desativado" : "Usuário ativado", u.name);
+    } catch (err) {
+      toast.error(
+        "Não foi possível alterar o status do usuário",
+        errorDetail(err),
+      );
+    }
   }
 
   async function remove(u: OfficeUser) {
@@ -139,8 +150,13 @@ export default function UsersPage() {
       tone: "danger",
     });
     if (!ok) return;
-    await deleteOfficeUser(officeId, u.id);
-    users.reload();
+    try {
+      await deleteOfficeUser(officeId, u.id);
+      users.reload();
+      toast.success("Usuário excluído", u.name);
+    } catch (err) {
+      toast.error("Não foi possível excluir o usuário", errorDetail(err));
+    }
   }
 
   async function resetPassword(u: OfficeUser) {
@@ -306,7 +322,7 @@ function UserForm({
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [touched, setTouched] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   const isEmployee = role === "EMPLOYEE";
   const errName = touched && !name.trim();
@@ -321,9 +337,14 @@ function UserForm({
 
   async function submit() {
     setTouched(true);
-    if (!name.trim() || !email.trim() || password.length < 6) return;
+    if (!name.trim() || !email.trim() || password.length < 6) {
+      toast.error(
+        "Campos obrigatórios faltando",
+        "nome, e-mail e senha (mín. 6)",
+      );
+      return;
+    }
     setSaving(true);
-    setError(null);
     const payload: CreateOfficeUserDTO = {
       name: name.trim(),
       email: email.trim(),
@@ -333,9 +354,10 @@ function UserForm({
     };
     try {
       await createOfficeUser(officeId, payload);
+      toast.success("Usuário criado", payload.name);
       onDone();
-    } catch {
-      setError("Não foi possível criar o usuário.");
+    } catch (err) {
+      toast.error("Não foi possível criar o usuário", errorDetail(err));
       setSaving(false);
     }
   }
@@ -402,8 +424,6 @@ function UserForm({
             </div>
           )}
 
-          {error && <ErrorText>{error}</ErrorText>}
-
           <div className="flex justify-end gap-3">
             <Button variant="ghost" onClick={onCancel} disabled={saving}>
               Cancelar
@@ -434,7 +454,7 @@ function PermissionsEditor({
     user.permissions,
   );
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   function toggle(p: Permission) {
     setPermissions((prev) =>
@@ -444,12 +464,12 @@ function PermissionsEditor({
 
   async function submit() {
     setSaving(true);
-    setError(null);
     try {
       await updateOfficeUserPermissions(officeId, user.id, permissions);
+      toast.success("Permissões salvas", user.name);
       onDone();
-    } catch {
-      setError("Não foi possível salvar as permissões.");
+    } catch (err) {
+      toast.error("Não foi possível salvar as permissões", errorDetail(err));
       setSaving(false);
     }
   }
@@ -473,7 +493,6 @@ function PermissionsEditor({
         </CardHeader>
         <CardBody className="flex flex-col gap-4">
           <PermissionPicker selected={permissions} onToggle={toggle} />
-          {error && <ErrorText>{error}</ErrorText>}
           <div className="flex justify-end gap-3">
             <Button variant="ghost" onClick={onCancel} disabled={saving}>
               Cancelar

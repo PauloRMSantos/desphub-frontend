@@ -17,6 +17,7 @@ import {
 import { useResource } from "@/hooks/use-resource";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useConfirm } from "@/components/providers/confirm-provider";
+import { useToast } from "@/components/providers/toast-provider";
 import {
   getVehicles,
   getClients,
@@ -25,6 +26,7 @@ import {
   deleteVehicle,
   importNfeByPdf,
   parseVehicleDocument,
+  errorDetail,
 } from "@/lib/data";
 import type { CreateVehicleDTO, Vehicle } from "@/types";
 import { formatPlate, maskYearModel } from "@/lib/format";
@@ -49,6 +51,17 @@ type View =
 
 const VEHICLE_PREFILL_KEY = "dh-vehicle-prefill";
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+const FIELD_LABEL: Record<string, string> = {
+  plate: "placa",
+  brand: "marca",
+  model: "modelo",
+  fabricationAndModel: "ano fab./modelo",
+  color: "cor",
+  chassis: "chassi",
+};
+
 const emptyForm: CreateVehicleDTO = {
   plate: "",
   brand: "",
@@ -63,6 +76,7 @@ const emptyForm: CreateVehicleDTO = {
 export default function VehiclesPage() {
   const { can } = useAuth();
   const { confirm } = useConfirm();
+  const toast = useToast();
   const canWrite = can("VEHICLES_WRITE");
   const canImport = can("NFE_IMPORT");
   const vehicles = useResource(getVehicles, []);
@@ -106,8 +120,13 @@ export default function VehiclesPage() {
       tone: "danger",
     });
     if (!ok) return;
-    await deleteVehicle(v.id);
-    vehicles.reload();
+    try {
+      await deleteVehicle(v.id);
+      vehicles.reload();
+      toast.success("Veículo excluído", label);
+    } catch (err) {
+      toast.error("Não foi possível excluir o veículo", errorDetail(err));
+    }
   }
 
   const clientName = (id: number | null) =>
@@ -271,6 +290,7 @@ function VehicleForm({
   onCancel: () => void;
 }) {
   const isEdit = vehicle != null;
+  const [zeroKm, setZeroKm] = useState(vehicle ? !vehicle.plate : false);
   const [mode, setMode] = useState<"plate" | "nfe" | "document">("plate");
   const [form, setForm] = useState<CreateVehicleDTO>(
     vehicle
@@ -291,18 +311,20 @@ function VehicleForm({
   const [warnings, setWarnings] = useState<string[]>([]);
   const [touched, setTouched] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const docRef = useRef<HTMLInputElement>(null);
+  const toast = useToast();
 
   const set =
     (key: keyof CreateVehicleDTO) =>
     (e: React.ChangeEvent<HTMLInputElement>) =>
       setForm((f) => ({ ...f, [key]: e.target.value }));
 
-  const required = ["brand", "model", "fabricationAndModel", "color", "chassis"] as const;
-  const missing = (k: (typeof required)[number]) =>
-    touched && !(form[k] ?? "").toString().trim();
+  const required: (keyof CreateVehicleDTO)[] = zeroKm
+    ? ["brand", "model", "fabricationAndModel", "color", "chassis"]
+    : ["brand", "model", "fabricationAndModel", "color", "plate"];
+  const missing = (k: keyof CreateVehicleDTO) =>
+    touched && required.includes(k) && !(form[k] ?? "").toString().trim();
 
   function applyImport(vehicle: CreateVehicleDTO, warn: string[]) {
     setForm((f) => ({ ...f, ...vehicle }));
@@ -312,12 +334,25 @@ function VehicleForm({
 
   async function importByFile(file: File) {
     setImporting(true);
-    setError(null);
+    const toastId = toast.loading(
+      "Extraindo dados da NF-e…",
+      "Lendo o PDF do DANFE.",
+    );
+    const started = Date.now();
     try {
       const res = await importNfeByPdf(file);
+      const elapsed = Date.now() - started;
+      if (elapsed < 3500) await sleep(3500 - elapsed);
       applyImport(res.vehicle, res.warnings ?? []);
-    } catch {
-      setError("Falha ao importar a NF-e pelo PDF do DANFE.");
+      toast.update(toastId, "success", {
+        title: "Dados extraídos da NF-e",
+        description: "Confira e complete os campos antes de salvar.",
+      });
+    } catch (err) {
+      toast.update(toastId, "error", {
+        title: "Falha ao importar a NF-e",
+        description: errorDetail(err) ?? "Envie o PDF do DANFE da nota.",
+      });
     } finally {
       setImporting(false);
     }
@@ -325,9 +360,15 @@ function VehicleForm({
 
   async function importByDocument(file: File) {
     setImporting(true);
-    setError(null);
+    const toastId = toast.loading(
+      "Extraindo dados do documento…",
+      "Lendo o CRLV-e / ATPV-e.",
+    );
+    const started = Date.now();
     try {
       const r = await parseVehicleDocument(file);
+      const elapsed = Date.now() - started;
+      if (elapsed < 3500) await sleep(3500 - elapsed);
       setForm((f) => ({
         ...f,
         plate: r.plate ? formatPlate(r.plate) : f.plate,
@@ -340,12 +381,26 @@ function VehicleForm({
         renavam: r.renavam ? r.renavam.replace(/\D/g, "") : f.renavam,
         chassis: r.chassis ?? f.chassis,
       }));
+      if (r.plate) setZeroKm(false);
       setWarnings([]);
       setImported(true);
-    } catch {
-      setError(
-        "Não foi possível ler o documento. Envie um CRLV-e ou ATPV-e em PDF.",
-      );
+      const missingFields = [
+        !r.brand && "marca",
+        !r.model && "modelo",
+        !r.color && "cor",
+        !r.fabricationAndModel && "ano",
+      ].filter(Boolean);
+      toast.update(toastId, "success", {
+        title: "Dados extraídos do documento",
+        description: missingFields.length
+          ? `Confira e preencha: ${missingFields.join(", ")}.`
+          : "Confira os campos antes de salvar.",
+      });
+    } catch (err) {
+      toast.update(toastId, "error", {
+        title: "Não foi possível ler o documento",
+        description: errorDetail(err) ?? "Envie um CRLV-e ou ATPV-e em PDF.",
+      });
     } finally {
       setImporting(false);
     }
@@ -353,24 +408,33 @@ function VehicleForm({
 
   async function submit() {
     setTouched(true);
-    if (required.some((k) => !(form[k] ?? "").toString().trim())) return;
+    const miss = required.filter((k) => !(form[k] ?? "").toString().trim());
+    if (miss.length) {
+      toast.error(
+        "Campos obrigatórios faltando",
+        miss.map((k) => FIELD_LABEL[k] ?? k).join(", "),
+      );
+      return;
+    }
     setSaving(true);
-    setError(null);
     const payload = {
       ...form,
-      plate: form.plate?.trim() || undefined,
+      plate: zeroKm ? undefined : form.plate?.trim() || undefined,
+      chassis: form.chassis?.trim() || undefined,
       renavam: form.renavam?.trim() || undefined,
       clientId: form.clientId ?? undefined,
     };
     try {
       if (vehicle) {
         await updateVehicle(vehicle.id, payload);
+        toast.success("Veículo atualizado");
       } else {
         await createVehicle(payload);
+        toast.success("Veículo cadastrado");
       }
       onDone();
-    } catch {
-      setError("Não foi possível salvar o veículo.");
+    } catch (err) {
+      toast.error("Não foi possível salvar o veículo", errorDetail(err));
       setSaving(false);
     }
   }
@@ -567,23 +631,37 @@ function VehicleForm({
             </Field>
 
             <Divider />
-            <FieldsetLabel>Dados do veículo</FieldsetLabel>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <FieldsetLabel>Dados do veículo</FieldsetLabel>
+              <label className="flex cursor-pointer items-center gap-2.5 rounded-pill border border-border-strong px-3.5 py-2 text-[13px] font-semibold text-text-2 transition-colors hover:bg-surface-soft">
+                <input
+                  type="checkbox"
+                  checked={zeroKm}
+                  onChange={(e) => setZeroKm(e.target.checked)}
+                  className="h-4 w-4 accent-orange"
+                />
+                Veículo 0 km (sem placa)
+              </label>
+            </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Field>
-                <Label>Placa</Label>
+                <Label required={!zeroKm}>Placa</Label>
                 <Input
                   mono
                   className="uppercase"
                   value={form.plate ?? ""}
+                  disabled={zeroKm}
                   onChange={(e) =>
                     setForm((f) => ({
                       ...f,
                       plate: formatPlate(e.target.value),
                     }))
                   }
-                  placeholder="ABC1D23 (deixe vazio se 0 km)"
+                  state={missing("plate") ? "error" : okState(form.plate)}
+                  placeholder={zeroKm ? "Sem placa (0 km)" : "ABC1D23"}
                 />
+                {missing("plate") && <ErrorText>Campo obrigatório</ErrorText>}
               </Field>
               <Field>
                 <Label required>Marca</Label>
@@ -650,10 +728,10 @@ function VehicleForm({
             </div>
 
             <Field>
-              <Label required>Chassi (VIN)</Label>
+              <Label required={zeroKm}>Chassi (VIN)</Label>
               <Input
                 mono
-                value={form.chassis}
+                value={form.chassis ?? ""}
                 onChange={set("chassis")}
                 state={missing("chassis") ? "error" : okState(form.chassis)}
                 placeholder="9BWZZZ..."
@@ -661,8 +739,6 @@ function VehicleForm({
               {missing("chassis") && <ErrorText>Campo obrigatório</ErrorText>}
             </Field>
           </div>
-
-          {error && <ErrorText>{error}</ErrorText>}
 
           <div className="flex justify-end gap-3">
             <Button variant="ghost" onClick={onCancel} disabled={saving}>

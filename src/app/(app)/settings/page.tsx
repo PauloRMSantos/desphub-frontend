@@ -5,11 +5,13 @@ import { Plus, Check, Trash2, Sun, Moon, Wrench, X } from "lucide-react";
 import { useResource } from "@/hooks/use-resource";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useConfirm } from "@/components/providers/confirm-provider";
+import { useToast } from "@/components/providers/toast-provider";
 import {
   getServices,
   createService,
   updateService,
   deleteService,
+  errorDetail,
 } from "@/lib/data";
 import type { Service } from "@/types";
 import { brl } from "@/lib/format";
@@ -79,43 +81,45 @@ function Appearance() {
 function ServicesManager() {
   const { can } = useAuth();
   const { confirm } = useConfirm();
+  const toast = useToast();
   const canWrite = can("SERVICES_WRITE");
   const services = useResource(getServices, []);
   const [editing, setEditing] = useState<Service | null>(null);
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   function startEdit(s: Service) {
     setEditing(s);
     setName(s.serviceName);
     setPrice(String(s.price));
-    setError(null);
   }
 
   function reset() {
     setEditing(null);
     setName("");
     setPrice("");
-    setError(null);
   }
 
   async function submit() {
     if (!name.trim() || !price) {
-      setError("Informe nome e preço.");
+      toast.error("Campos obrigatórios faltando", "nome e preço");
       return;
     }
     setSaving(true);
-    setError(null);
     const payload = { serviceName: name.trim(), price: Number(price) };
+    const wasEditing = editing != null;
     try {
       if (editing) await updateService(editing.id, payload);
       else await createService(payload);
       reset();
       services.reload();
-    } catch {
-      setError("Não foi possível salvar o serviço.");
+      toast.success(
+        wasEditing ? "Serviço atualizado" : "Serviço adicionado",
+        payload.serviceName,
+      );
+    } catch (err) {
+      toast.error("Não foi possível salvar o serviço", errorDetail(err));
     } finally {
       setSaving(false);
     }
@@ -129,9 +133,14 @@ function ServicesManager() {
       tone: "danger",
     });
     if (!ok) return;
-    await deleteService(s.id);
-    if (editing?.id === s.id) reset();
-    services.reload();
+    try {
+      await deleteService(s.id);
+      if (editing?.id === s.id) reset();
+      services.reload();
+      toast.success("Serviço excluído", s.serviceName);
+    } catch (err) {
+      toast.error("Não foi possível excluir o serviço", errorDetail(err));
+    }
   }
 
   const list = services.data ?? [];
@@ -184,9 +193,6 @@ function ServicesManager() {
             )}
           </div>
         </div>
-        {error && (
-          <div className="mt-2 text-[12px] font-medium text-danger">{error}</div>
-        )}
       </CardBody>
       )}
 

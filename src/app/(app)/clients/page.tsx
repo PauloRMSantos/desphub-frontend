@@ -15,12 +15,14 @@ import {
 import { useResource } from "@/hooks/use-resource";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useConfirm } from "@/components/providers/confirm-provider";
+import { useToast } from "@/components/providers/toast-provider";
 import {
   getClients,
   getVehicles,
   createClient,
   updateClient,
   deleteClient,
+  errorDetail,
 } from "@/lib/data";
 import type { Client, CreateClientDTO } from "@/types";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,6 +45,7 @@ type Mode = "view" | "edit" | "new";
 export default function ClientsPage() {
   const { can } = useAuth();
   const { confirm } = useConfirm();
+  const toast = useToast();
   const canWrite = can("CLIENTS_WRITE");
   const clients = useResource(getClients, []);
   const vehicles = useResource(getVehicles, []);
@@ -95,6 +98,7 @@ export default function ClientsPage() {
     await createClient(data);
     await clients.reload();
     setMode("view");
+    toast.success("Cliente cadastrado", data.name);
   }
 
   async function handleUpdate(data: CreateClientDTO) {
@@ -102,6 +106,7 @@ export default function ClientsPage() {
     await updateClient(selected.id, data);
     await clients.reload();
     setMode("view");
+    toast.success("Cliente atualizado", data.name);
   }
 
   async function handleDelete() {
@@ -113,10 +118,16 @@ export default function ClientsPage() {
       tone: "danger",
     });
     if (!ok) return;
-    await deleteClient(selected.id);
-    setSelectedId(null);
-    setMode("view");
-    clients.reload();
+    const name = selected.name;
+    try {
+      await deleteClient(selected.id);
+      setSelectedId(null);
+      setMode("view");
+      clients.reload();
+      toast.success("Cliente excluído", name);
+    } catch (err) {
+      toast.error("Não foi possível excluir o cliente", errorDetail(err));
+    }
   }
 
   const showForm = mode === "edit" || mode === "new";
@@ -372,7 +383,7 @@ function ClientForm({
   });
   const [touched, setTouched] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   const errName = touched && !form.name.trim();
   const errPhone = touched && !form.telephone.trim();
@@ -384,9 +395,11 @@ function ClientForm({
 
   async function submit() {
     setTouched(true);
-    if (!form.name.trim() || !form.telephone.trim()) return;
+    if (!form.name.trim() || !form.telephone.trim()) {
+      toast.error("Campos obrigatórios faltando", "nome e telefone");
+      return;
+    }
     setSaving(true);
-    setError(null);
     try {
       await onSubmit({
         name: form.name.trim(),
@@ -394,8 +407,8 @@ function ClientForm({
         cpfCnpj: form.cpfCnpj?.trim() || undefined,
         address: form.address?.trim() || undefined,
       });
-    } catch {
-      setError("Não foi possível salvar. Tente novamente.");
+    } catch (err) {
+      toast.error("Não foi possível salvar o cliente", errorDetail(err));
     } finally {
       setSaving(false);
     }
@@ -444,8 +457,6 @@ function ClientForm({
           placeholder="Opcional"
         />
       </Field>
-
-      {error && <ErrorText>{error}</ErrorText>}
 
       <div className="mt-2 flex justify-end gap-3">
         <Button variant="ghost" onClick={onCancel} disabled={saving}>

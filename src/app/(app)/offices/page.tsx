@@ -1,10 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus, Check, Trash2, Building2, Ban, ChevronLeft } from "lucide-react";
 import { useResource } from "@/hooks/use-resource";
 import { useAuth } from "@/components/auth/auth-provider";
-import { getOffices, createOffice, deleteOffice } from "@/lib/data";
+import {
+  getOffices,
+  createOffice,
+  deleteOffice,
+  errorDetail,
+} from "@/lib/data";
 import type { CreateOfficeDTO } from "@/types";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table } from "@/components/ui/table";
@@ -12,21 +17,54 @@ import { Button } from "@/components/ui/button";
 import { Field, Label, ErrorText } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { DocInput } from "@/components/ui/masked-input";
-import { maskCpfCnpj } from "@/lib/format";
+import { maskCpfCnpj, onlyDigits } from "@/lib/format";
 import { EmptyState } from "@/components/ui/empty-state";
+import { SearchInput } from "@/components/ui/search-input";
+import { Pagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { usePageActions } from "@/components/shell/topbar-actions";
 import { useConfirm } from "@/components/providers/confirm-provider";
+import { useToast } from "@/components/providers/toast-provider";
+
+const PAGE_SIZE = 10;
 
 export default function OfficesPage() {
   const { isAdmin } = useAuth();
   const { confirm } = useConfirm();
+  const toast = useToast();
   const offices = useResource(
     () => (isAdmin ? getOffices() : Promise.resolve([])),
     [isAdmin],
   );
   const [creating, setCreating] = useState(false);
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+
+  const list = offices.data ?? [];
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const qDigits = onlyDigits(query);
+    if (!q) return list;
+    return list.filter(
+      (o) =>
+        o.name.toLowerCase().includes(q) ||
+        (o.cpfCnpj ?? "").toLowerCase().includes(q) ||
+        (qDigits.length > 0 && onlyDigits(o.cpfCnpj ?? "").includes(qDigits)),
+    );
+  }, [list, query]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+
+  useEffect(() => {
+    setPage(1);
+  }, [query]);
+
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount);
+  }, [page, pageCount]);
+
+  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   usePageActions(
     () =>
@@ -71,11 +109,14 @@ export default function OfficesPage() {
       tone: "danger",
     });
     if (!ok) return;
-    await deleteOffice(id);
-    offices.reload();
+    try {
+      await deleteOffice(id);
+      offices.reload();
+      toast.success("Escritório excluído", name);
+    } catch (err) {
+      toast.error("Não foi possível excluir o escritório", errorDetail(err));
+    }
   }
-
-  const list = offices.data ?? [];
 
   return (
     <Card className="fade-in">
@@ -103,37 +144,67 @@ export default function OfficesPage() {
           description="Cadastre o primeiro escritório."
         />
       ) : (
-        <Table>
-          <thead>
-            <tr>
-              <th>Escritório</th>
-              <th>CPF / CNPJ</th>
-              <th className="w-16" />
-            </tr>
-          </thead>
-          <tbody>
-            {list.map((o) => (
-              <tr key={o.id}>
-                <td className="font-semibold">{o.name}</td>
-                <td className="font-mono text-[12.5px] text-text-2">
-                  {o.cpfCnpj ? maskCpfCnpj(o.cpfCnpj) : "—"}
-                </td>
-                <td>
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      aria-label="Excluir"
-                      onClick={() => remove(o.id, o.name)}
-                      className="grid h-8 w-8 place-items-center rounded-[10px] text-text-3 hover:bg-danger-bg hover:text-danger"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </Table>
+        <>
+          <div className="border-b border-border p-4">
+            <SearchInput
+              placeholder="Buscar por nome ou CPF/CNPJ…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              wrapperClassName="w-full"
+            />
+            <div className="mt-3 text-[12.5px] text-text-3">
+              {filtered.length}{" "}
+              {filtered.length === 1 ? "escritório" : "escritórios"}
+            </div>
+          </div>
+
+          {filtered.length === 0 ? (
+            <EmptyState
+              icon={<Building2 size={30} />}
+              title="Nenhum escritório encontrado"
+              description="Ajuste a busca e tente novamente."
+            />
+          ) : (
+            <Table>
+              <thead>
+                <tr>
+                  <th>Escritório</th>
+                  <th>CPF / CNPJ</th>
+                  <th className="w-16" />
+                </tr>
+              </thead>
+              <tbody>
+                {paged.map((o) => (
+                  <tr key={o.id}>
+                    <td className="font-semibold">{o.name}</td>
+                    <td className="font-mono text-[12.5px] text-text-2">
+                      {o.cpfCnpj ? maskCpfCnpj(o.cpfCnpj) : "—"}
+                    </td>
+                    <td>
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          aria-label="Excluir"
+                          onClick={() => remove(o.id, o.name)}
+                          className="grid h-8 w-8 place-items-center rounded-[10px] text-text-3 hover:bg-danger-bg hover:text-danger"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+
+          <Pagination
+            page={page}
+            pageSize={PAGE_SIZE}
+            total={filtered.length}
+            onPageChange={setPage}
+          />
+        </>
       )}
     </Card>
   );
@@ -150,25 +221,28 @@ function OfficeForm({
   const [cpfCnpj, setCpfCnpj] = useState("");
   const [touched, setTouched] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   const errName = touched && !name.trim();
   const errDoc = touched && !cpfCnpj.trim();
 
   async function submit() {
     setTouched(true);
-    if (!name.trim() || !cpfCnpj.trim()) return;
+    if (!name.trim() || !cpfCnpj.trim()) {
+      toast.error("Campos obrigatórios faltando", "nome e CPF/CNPJ");
+      return;
+    }
     setSaving(true);
-    setError(null);
     const payload: CreateOfficeDTO = {
       name: name.trim(),
       cpfCnpj: cpfCnpj.trim(),
     };
     try {
       await createOffice(payload);
+      toast.success("Escritório criado", payload.name);
       onDone();
-    } catch {
-      setError("Não foi possível criar o escritório.");
+    } catch (err) {
+      toast.error("Não foi possível criar o escritório", errorDetail(err));
       setSaving(false);
     }
   }
@@ -206,8 +280,6 @@ function OfficeForm({
             />
             {errDoc && <ErrorText>Campo obrigatório</ErrorText>}
           </Field>
-
-          {error && <ErrorText>{error}</ErrorText>}
 
           <div className="flex justify-end gap-3">
             <Button variant="ghost" onClick={onCancel} disabled={saving}>
