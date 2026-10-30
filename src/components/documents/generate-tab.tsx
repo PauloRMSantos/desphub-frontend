@@ -11,17 +11,19 @@ import {
   generateDocument,
   downloadDocumentPdf,
 } from "@/lib/data";
-import { ApiError } from "@/lib/data/http";
+import { ApiError, errorDetail } from "@/lib/data/http";
 import type { GeneratedDocument, Template } from "@/types";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Field, Label, ErrorText } from "@/components/ui/field";
+import { Field, Label } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Spinner } from "@/components/ui/spinner";
+import { useToast } from "@/components/providers/toast-provider";
 
 export function GenerateTab() {
+  const toast = useToast();
   const templates = useResource(getTemplates, []);
   const clients = useResource(getClients, []);
   const vehicles = useResource(getVehicles, []);
@@ -38,7 +40,6 @@ export function GenerateTab() {
   const [manualValues, setManualValues] = useState<Record<string, string>>({});
 
   const [generating, setGenerating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<GeneratedDocument | null>(null);
 
   useEffect(() => {
@@ -65,7 +66,7 @@ export function GenerateTab() {
         setManualValues({});
       })
       .catch(() => {
-        if (active) setError("Não foi possível carregar o modelo.");
+        if (active) toast.error("Não foi possível carregar o modelo");
       })
       .finally(() => {
         if (active) setLoadingTemplate(false);
@@ -111,15 +112,14 @@ export function GenerateTab() {
 
   async function generate() {
     if (!template || !clientId) {
-      setError("Selecione o modelo e o cliente.");
+      toast.error("Campos obrigatórios faltando", "modelo e cliente");
       return;
     }
     if (vehicleRequired && !vehicleId) {
-      setError("Este modelo exige um veículo.");
+      toast.error("Este modelo exige um veículo");
       return;
     }
     setGenerating(true);
-    setError(null);
     try {
       const doc = await generateDocument({
         templateId: template.id,
@@ -129,13 +129,16 @@ export function GenerateTab() {
         manualValues,
       });
       setResult(doc);
+      toast.success("Documento gerado", doc?.templateName);
     } catch (err) {
       if (err instanceof ApiError && err.status === 422) {
-        setError(
-          "Revise as opções: verifique grupos obrigatórios e campos manuais.",
+        toast.error(
+          "Revise as opções",
+          errorDetail(err) ??
+            "Verifique grupos obrigatórios e campos manuais.",
         );
       } else {
-        setError("Não foi possível gerar o documento.");
+        toast.error("Não foi possível gerar o documento", errorDetail(err));
       }
     } finally {
       setGenerating(false);
@@ -359,8 +362,6 @@ export function GenerateTab() {
           />
         </Card>
       )}
-
-      {error && <ErrorText>{error}</ErrorText>}
     </div>
   );
 }

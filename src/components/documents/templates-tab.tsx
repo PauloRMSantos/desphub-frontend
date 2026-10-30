@@ -12,6 +12,7 @@ import {
 import { useResource } from "@/hooks/use-resource";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useConfirm } from "@/components/providers/confirm-provider";
+import { useToast } from "@/components/providers/toast-provider";
 import {
   getTemplates,
   getTemplate,
@@ -19,12 +20,12 @@ import {
   aiTemplateFromText,
   aiTemplateFromDescription,
 } from "@/lib/data";
-import { ApiError } from "@/lib/data/http";
+import { ApiError, errorDetail } from "@/lib/data/http";
 import type { CreateTemplateDTO, Template, TemplateCategory } from "@/types";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Field, Label, ErrorText } from "@/components/ui/field";
+import { Field, Label } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -45,6 +46,7 @@ export function TemplatesTab() {
   const { can } = useAuth();
   const canWrite = can("TEMPLATES_WRITE");
   const { confirm } = useConfirm();
+  const toast = useToast();
   const templates = useResource(getTemplates, []);
 
   const [editing, setEditing] = useState<Template | null>(null);
@@ -85,8 +87,13 @@ export function TemplatesTab() {
       tone: "danger",
     });
     if (!ok) return;
-    await deleteTemplate(id);
-    templates.reload();
+    try {
+      await deleteTemplate(id);
+      templates.reload();
+      toast.success("Modelo excluído", name);
+    } catch (err) {
+      toast.error("Não foi possível excluir o modelo", errorDetail(err));
+    }
   }
 
   if (inEditor) {
@@ -217,15 +224,14 @@ function AiModal({
   const [text, setText] = useState("");
   const [category, setCategory] = useState<TemplateCategory>("PROCURACAO");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   async function run() {
     if (!text.trim()) {
-      setError("Preencha o campo para a IA.");
+      toast.error("Preencha o campo para a IA");
       return;
     }
     setLoading(true);
-    setError(null);
     try {
       const draft =
         mode === "text"
@@ -234,14 +240,17 @@ function AiModal({
               description: text.trim(),
               category,
             });
-      if (draft) onSuggestion(draft);
+      if (draft) {
+        toast.success("Sugestão gerada", "Revise e salve o modelo.");
+        onSuggestion(draft);
+      }
     } catch (err) {
       if (err instanceof ApiError && err.status === 503) {
-        setError("A IA não está configurada no servidor.");
+        toast.error("IA indisponível", "A IA não está configurada no servidor.");
       } else if (err instanceof ApiError && err.status === 502) {
-        setError("A IA respondeu num formato inesperado. Tente novamente.");
+        toast.error("Resposta inesperada da IA", "Tente novamente.");
       } else {
-        setError("Não foi possível gerar a sugestão.");
+        toast.error("Não foi possível gerar a sugestão", errorDetail(err));
       }
       setLoading(false);
     }
@@ -278,6 +287,7 @@ function AiModal({
         <Field>
           <Label>Categoria</Label>
           <Select
+            searchable={false}
             value={category}
             onChange={(e) => setCategory(e.target.value as TemplateCategory)}
           >
@@ -301,7 +311,6 @@ function AiModal({
             }
           />
         </Field>
-        {error && <ErrorText>{error}</ErrorText>}
       </div>
     </Modal>
   );

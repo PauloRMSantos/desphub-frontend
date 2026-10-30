@@ -322,6 +322,18 @@ body {
   }
 }
 
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* Shimmering skeleton placeholder */
 @utility skel {
   background: linear-gradient(

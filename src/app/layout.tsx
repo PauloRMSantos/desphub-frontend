@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { AuthProvider } from "@/components/auth/auth-provider";
 import { ConfirmProvider } from "@/components/providers/confirm-provider";
+import { ToastProvider } from "@/components/providers/toast-provider";
 
 const barlow = Barlow_Condensed({
   variable: "--font-barlow",
@@ -46,7 +47,9 @@ export default function RootLayout({
       <body className="min-h-full">
         <ThemeProvider>
           <AuthProvider>
-            <ConfirmProvider>{children}</ConfirmProvider>
+            <ToastProvider>
+              <ConfirmProvider>{children}</ConfirmProvider>
+            </ToastProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

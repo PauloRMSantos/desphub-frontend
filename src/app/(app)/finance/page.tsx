@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Plus,
   Check,
@@ -17,6 +17,7 @@ import {
   createExpense,
   updateExpense,
   deleteExpense,
+  errorDetail,
 } from "@/lib/data";
 import type { ExpenseItem } from "@/types";
 import { brl, brlNumber, isoToBR } from "@/lib/format";
@@ -31,10 +32,20 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useConfirm } from "@/components/providers/confirm-provider";
+import { useToast } from "@/components/providers/toast-provider";
 
 function currentMonth(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function todayISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function defaultDateForMonth(month: string): string {
+  return month === currentMonth() ? todayISO() : `${month}-01`;
 }
 
 function monthBounds(month: string): { from: string; to: string } {
@@ -170,21 +181,24 @@ function ExpensesManager({
   onReload: () => void;
 }) {
   const { confirm } = useConfirm();
+  const toast = useToast();
   const [editing, setEditing] = useState<ExpenseItem | null>(null);
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
-  const [date, setDate] = useState(`${month}-01`);
+  const [date, setDate] = useState(() => defaultDateForMonth(month));
   const [category, setCategory] = useState("");
   const [saving, setSaving] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!editing) setDate(defaultDateForMonth(month));
+  }, [month, editing]);
 
   function reset() {
     setEditing(null);
     setDescription("");
     setAmount("");
-    setDate(`${month}-01`);
+    setDate(defaultDateForMonth(month));
     setCategory("");
-    setFormError(null);
   }
 
   function startEdit(e: ExpenseItem) {
@@ -193,29 +207,32 @@ function ExpensesManager({
     setAmount(String(e.amount));
     setDate(e.date.slice(0, 10));
     setCategory(e.category ?? "");
-    setFormError(null);
   }
 
   async function submit() {
     if (!description.trim() || !amount || !date) {
-      setFormError("Informe descrição, valor e data.");
+      toast.error("Campos obrigatórios faltando", "descrição, valor e data");
       return;
     }
     setSaving(true);
-    setFormError(null);
     const payload = {
       description: description.trim(),
       amount: Number(amount),
       date,
       category: category.trim() || undefined,
     };
+    const wasEditing = editing != null;
     try {
       if (editing) await updateExpense(editing.id, payload);
       else await createExpense(payload);
       reset();
       onReload();
-    } catch {
-      setFormError("Não foi possível salvar a despesa.");
+      toast.success(
+        wasEditing ? "Despesa atualizada" : "Despesa lançada",
+        payload.description,
+      );
+    } catch (err) {
+      toast.error("Não foi possível salvar a despesa", errorDetail(err));
     } finally {
       setSaving(false);
     }
@@ -229,9 +246,14 @@ function ExpensesManager({
       tone: "danger",
     });
     if (!ok) return;
-    await deleteExpense(e.id);
-    if (editing?.id === e.id) reset();
-    onReload();
+    try {
+      await deleteExpense(e.id);
+      if (editing?.id === e.id) reset();
+      onReload();
+      toast.success("Despesa excluída", e.description);
+    } catch (err) {
+      toast.error("Não foi possível excluir a despesa", errorDetail(err));
+    }
   }
 
   return (
@@ -298,11 +320,6 @@ function ExpensesManager({
               )}
             </div>
           </div>
-          {formError && (
-            <div className="mt-2 text-[12px] font-medium text-danger">
-              {formError}
-            </div>
-          )}
         </CardBody>
       )}
 

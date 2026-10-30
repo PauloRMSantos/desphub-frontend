@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Plus,
   FileText,
@@ -18,6 +19,7 @@ import {
   getServices,
   createBudget,
   updateBudget,
+  errorDetail,
 } from "@/lib/data";
 import type {
   Budget,
@@ -40,7 +42,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { usePageActions } from "@/components/shell/topbar-actions";
+import { AddServiceMenu } from "@/components/services/add-service-menu";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useToast } from "@/components/providers/toast-provider";
 import { PrintBrand } from "@/components/print/print-brand";
 
 const STATUS_LIST: BudgetStatus[] = ["PENDENTE", "APROVADO", "RECUSADO"];
@@ -53,6 +57,7 @@ interface ItemRow {
 
 export default function BudgetsPage() {
   const { can, user } = useAuth();
+  const toast = useToast();
   const canWrite = can("BUDGETS_WRITE");
   const budgets = useResource(getBudgets, []);
   const clients = useResource(getClients, []);
@@ -76,8 +81,10 @@ export default function BudgetsPage() {
     [canWrite],
   );
 
-  const clientName = (id: number) =>
-    clients.data?.find((c) => c.id === id)?.name ?? `#${id}`;
+  const clientName = (id: number | null | undefined) => {
+    if (id == null) return "-";
+    return clients.data?.find((c) => c.id === id)?.name ?? `#${id}`;
+  };
 
   const list = budgets.data ?? [];
 
@@ -111,18 +118,23 @@ export default function BudgetsPage() {
         setFormOpen(true);
       }}
       onUpdateStatus={async (b, status) => {
-        await updateBudget(b.id, {
-          code: b.code,
-          status,
-          clientId: b.clientId,
-          totalPrice: b.totalPrice,
-          items: b.items.map((it) => ({
-            serviceId: it.serviceId,
-            quantity: it.quantity,
-            unitPrice: it.unitPrice,
-          })),
-        });
-        budgets.reload();
+        try {
+          await updateBudget(b.id, {
+            code: b.code,
+            status,
+            clientId: b.clientId,
+            totalPrice: b.totalPrice,
+            items: b.items.map((it) => ({
+              serviceId: it.serviceId,
+              quantity: it.quantity,
+              unitPrice: it.unitPrice,
+            })),
+          });
+          budgets.reload();
+          toast.success("Status atualizado", `${b.code} · ${BUDGET_STATUS[status].label}`);
+        } catch (err) {
+          toast.error("Não foi possível atualizar o status", errorDetail(err));
+        }
       }}
     />
   );
@@ -142,13 +154,12 @@ function BudgetList({
   loading: boolean;
   error: boolean;
   canWrite: boolean;
-  clientName: (id: number) => string;
+  clientName: (id: number | null | undefined) => string;
   onReload: () => void;
   onOpen: (b: Budget) => void;
   onUpdateStatus: (b: Budget, status: BudgetStatus) => Promise<void>;
 }) {
   const [filter, setFilter] = useState<"all" | BudgetStatus>("all");
-  const [menuFor, setMenuFor] = useState<number | null>(null);
 
   const filtered =
     filter === "all" ? budgets : budgets.filter((b) => b.status === filter);
@@ -224,47 +235,12 @@ function BudgetList({
                       {BUDGET_STATUS[b.status].label}
                     </Badge>
                   ) : (
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setMenuFor(menuFor === b.id ? null : b.id);
-                        }}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-transparent px-1.5 py-1 hover:border-border-strong hover:bg-surface-soft"
-                      >
-                        <Badge tone={BUDGET_STATUS[b.status].tone}>
-                          {BUDGET_STATUS[b.status].label}
-                        </Badge>
-                        <ChevronDown size={13} className="text-text-3" />
-                      </button>
-                      {menuFor === b.id && (
-                        <div className="fade-in absolute left-0 top-[34px] z-40 flex min-w-[186px] flex-col gap-0.5 rounded-xl border border-border bg-menu p-1.5 shadow-pop">
-                          {STATUS_LIST.map((s) => (
-                            <button
-                              key={s}
-                              type="button"
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                setMenuFor(null);
-                                if (s !== b.status) await onUpdateStatus(b, s);
-                              }}
-                              className="flex items-center gap-2 rounded-[10px] p-2 hover:bg-row-hover"
-                            >
-                              <Badge tone={BUDGET_STATUS[s].tone}>
-                                {BUDGET_STATUS[s].label}
-                              </Badge>
-                              {b.status === s && (
-                                <Check
-                                  size={14}
-                                  className="ml-auto text-link-blue"
-                                />
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    <StatusMenu
+                      status={b.status}
+                      onPick={(s) => {
+                        if (s !== b.status) onUpdateStatus(b, s);
+                      }}
+                    />
                   )}
                 </td>
                 <td className="text-right font-mono font-semibold">
@@ -276,6 +252,98 @@ function BudgetList({
         </Table>
       )}
     </Card>
+  );
+}
+
+function StatusMenu({
+  status,
+  onPick,
+}: {
+  status: BudgetStatus;
+  onPick: (s: BudgetStatus) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [open]);
+
+  function toggle(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) setPos({ top: r.bottom + 6, left: r.left });
+    setOpen(true);
+  }
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={toggle}
+        className="inline-flex items-center gap-1.5 rounded-full border border-transparent px-1.5 py-1 hover:border-border-strong hover:bg-surface-soft"
+      >
+        <Badge tone={BUDGET_STATUS[status].tone}>
+          {BUDGET_STATUS[status].label}
+        </Badge>
+        <ChevronDown size={13} className="text-text-3" />
+      </button>
+      {open &&
+        mounted &&
+        pos &&
+        createPortal(
+          <>
+            <div
+              className="fixed inset-0 z-[55]"
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpen(false);
+              }}
+            />
+            <div
+              style={{ position: "fixed", top: pos.top, left: pos.left }}
+              className="fade-in z-[56] flex min-w-[186px] flex-col gap-0.5 rounded-xl border border-border bg-menu p-1.5 shadow-pop"
+            >
+              {STATUS_LIST.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpen(false);
+                    onPick(s);
+                  }}
+                  className="flex items-center gap-2 rounded-[10px] p-2 hover:bg-row-hover"
+                >
+                  <Badge tone={BUDGET_STATUS[s].tone}>
+                    {BUDGET_STATUS[s].label}
+                  </Badge>
+                  {status === s && (
+                    <Check size={14} className="ml-auto text-link-blue" />
+                  )}
+                </button>
+              ))}
+            </div>
+          </>,
+          document.body,
+        )}
+    </>
   );
 }
 
@@ -314,29 +382,26 @@ function BudgetForm({
   );
   const [showPrint, setShowPrint] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   const serviceName = (id: number) =>
     services.find((s) => s.id === id)?.serviceName ?? `Serviço #${id}`;
   const total = items.reduce((acc, i) => acc + i.quantity * i.unitPrice, 0);
   const selectedClient = clients.find((c) => c.id === clientId) ?? null;
 
-  function addItem() {
-    const first = services[0];
-    if (!first) return;
+  function addService(s: Service) {
     setItems((p) => [
       ...p,
-      { serviceId: first.id, quantity: 1, unitPrice: first.price },
+      { serviceId: s.id, quantity: 1, unitPrice: s.price },
     ]);
   }
 
   async function submit() {
     if (!code.trim()) {
-      setError("Informe o código do orçamento.");
+      toast.error("Campo obrigatório faltando", "código do orçamento");
       return;
     }
     setSaving(true);
-    setError(null);
     const payload = {
       code: code.trim(),
       status,
@@ -351,9 +416,13 @@ function BudgetForm({
     try {
       if (budget) await updateBudget(budget.id, payload);
       else await createBudget(payload);
+      toast.success(
+        budget ? "Orçamento atualizado" : "Orçamento emitido",
+        payload.code,
+      );
       onDone();
-    } catch {
-      setError("Não foi possível salvar o orçamento.");
+    } catch (err) {
+      toast.error("Não foi possível salvar o orçamento", errorDetail(err));
       setSaving(false);
     }
   }
@@ -411,6 +480,7 @@ function BudgetForm({
             <Field>
               <Label>Status</Label>
               <Select
+                searchable={false}
                 value={status}
                 disabled={!canWrite}
                 onChange={(e) => setStatus(e.target.value as BudgetStatus)}
@@ -423,119 +493,105 @@ function BudgetForm({
               </Select>
             </Field>
 
-            <Field>
-              <Label>Serviços incluídos</Label>
-              <div className="flex flex-col gap-2">
-                {items.map((it, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-2 rounded-md border border-border p-2.5"
-                  >
-                    <Select
-                      value={it.serviceId}
-                      className="flex-1"
-                      disabled={!canWrite}
-                      onChange={(e) => {
-                        const s = services.find(
-                          (x) => x.id === Number(e.target.value),
-                        );
-                        if (!s) return;
-                        setItems((p) =>
-                          p.map((x, idx) =>
-                            idx === i
-                              ? {
-                                  serviceId: s.id,
-                                  quantity: x.quantity,
-                                  unitPrice: s.price,
-                                }
-                              : x,
-                          ),
-                        );
-                      }}
-                    >
-                      {services.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.serviceName}
-                        </option>
-                      ))}
-                    </Select>
-                    <Input
-                      mono
-                      type="number"
-                      min={1}
-                      value={it.quantity}
-                      disabled={!canWrite}
-                      onChange={(e) =>
-                        setItems((p) =>
-                          p.map((x, idx) =>
-                            idx === i
-                              ? { ...x, quantity: Math.max(1, +e.target.value) }
-                              : x,
-                          ),
-                        )
-                      }
-                      className="w-16 px-2 py-2 text-center"
-                    />
-                    <Input
-                      mono
-                      type="number"
-                      value={it.unitPrice}
-                      disabled={!canWrite}
-                      onChange={(e) =>
-                        setItems((p) =>
-                          p.map((x, idx) =>
-                            idx === i
-                              ? { ...x, unitPrice: +e.target.value }
-                              : x,
-                          ),
-                        )
-                      }
-                      className="w-24 px-2 py-2"
-                    />
-                    <span className="w-24 text-right font-mono text-[13px] font-semibold">
-                      {brl(it.quantity * it.unitPrice)}
-                    </span>
-                    {canWrite && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setItems((p) => p.filter((_, idx) => idx !== i))
-                        }
-                        className="grid h-8 w-8 place-items-center rounded-[10px] text-text-3 hover:bg-danger-bg hover:text-danger"
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    )}
-                  </div>
-                ))}
-                {items.length === 0 && (
-                  <span className="text-[12px] text-text-3">
-                    Nenhum serviço adicionado.
-                  </span>
-                )}
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <Label>Serviços incluídos</Label>
                 {canWrite && (
-                  <Button
-                    variant="soft"
-                    size="sm"
-                    className="self-start"
-                    onClick={addItem}
-                    disabled={services.length === 0}
-                  >
-                    <Plus size={15} />
-                    Adicionar item
-                  </Button>
-                )}
-                {canWrite && services.length === 0 && (
-                  <span className="text-[12px] text-text-3">
-                    Cadastre serviços para adicionar itens.
-                  </span>
+                  <AddServiceMenu services={services} onPick={addService} />
                 )}
               </div>
-            </Field>
-
-            {error && (
-              <div className="text-[12px] font-medium text-danger">{error}</div>
-            )}
+              <div className="overflow-hidden rounded-lg border border-border">
+                <Table>
+                  <thead>
+                    <tr>
+                      <th>Serviço</th>
+                      <th className="w-20">Qtd</th>
+                      <th className="w-[130px]">Valor unit.</th>
+                      <th className="w-[120px] text-right">Subtotal</th>
+                      {canWrite && <th className="w-11" />}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={canWrite ? 5 : 4}
+                          className="py-6 text-center text-text-3"
+                        >
+                          Nenhum serviço adicionado.
+                        </td>
+                      </tr>
+                    ) : (
+                      items.map((it, i) => (
+                        <tr key={i}>
+                          <td className="font-semibold">
+                            {serviceName(it.serviceId)}
+                          </td>
+                          <td>
+                            <Input
+                              mono
+                              type="number"
+                              min={1}
+                              value={it.quantity}
+                              disabled={!canWrite}
+                              onChange={(e) =>
+                                setItems((p) =>
+                                  p.map((x, idx) =>
+                                    idx === i
+                                      ? {
+                                          ...x,
+                                          quantity: Math.max(1, +e.target.value),
+                                        }
+                                      : x,
+                                  ),
+                                )
+                              }
+                              className="w-16 px-2 py-1.5 text-center"
+                            />
+                          </td>
+                          <td>
+                            <Input
+                              mono
+                              type="number"
+                              value={it.unitPrice}
+                              disabled={!canWrite}
+                              onChange={(e) =>
+                                setItems((p) =>
+                                  p.map((x, idx) =>
+                                    idx === i
+                                      ? { ...x, unitPrice: +e.target.value }
+                                      : x,
+                                  ),
+                                )
+                              }
+                              className="w-24 px-2 py-1.5"
+                            />
+                          </td>
+                          <td className="text-right font-mono font-semibold">
+                            {brl(it.quantity * it.unitPrice)}
+                          </td>
+                          {canWrite && (
+                            <td>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setItems((p) =>
+                                    p.filter((_, idx) => idx !== i),
+                                  )
+                                }
+                                className="grid h-8 w-8 place-items-center rounded-[10px] text-text-3 hover:bg-danger-bg hover:text-danger"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </Table>
+              </div>
+            </div>
           </CardBody>
         </Card>
       </div>

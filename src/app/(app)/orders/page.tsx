@@ -27,6 +27,7 @@ import {
   getExpenses,
   createExpense,
   deleteExpense,
+  errorDetail,
 } from "@/lib/data";
 import type {
   AuthUser,
@@ -53,8 +54,10 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { usePageActions } from "@/components/shell/topbar-actions";
+import { AddServiceMenu } from "@/components/services/add-service-menu";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useConfirm } from "@/components/providers/confirm-provider";
+import { useToast } from "@/components/providers/toast-provider";
 import { PrintBrand } from "@/components/print/print-brand";
 
 interface ItemRow {
@@ -66,6 +69,7 @@ interface ItemRow {
 export default function OrdersPage() {
   const { user, can } = useAuth();
   const { confirm } = useConfirm();
+  const toast = useToast();
   const canWrite = can("SERVICE_ORDERS_WRITE");
   const orders = useResource(getServiceOrders, []);
   const clients = useResource(getClients, []);
@@ -113,8 +117,13 @@ export default function OrdersPage() {
       tone: "danger",
     });
     if (!ok) return;
-    await deleteServiceOrder(o.id);
-    orders.reload();
+    try {
+      await deleteServiceOrder(o.id);
+      orders.reload();
+      toast.success("OS excluída", o.code);
+    } catch (err) {
+      toast.error("Não foi possível excluir a OS", errorDetail(err));
+    }
   }
 
   const list = orders.data ?? [];
@@ -296,10 +305,8 @@ function OrderForm({
       unitPrice: i.unitPrice,
     })) ?? [],
   );
-  const [addOpen, setAddOpen] = useState(false);
   const [showPrint, setShowPrint] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const clientVehicles = vehicles.filter((v) => v.clientId === clientId);
   const serviceName = (id: number) =>
@@ -331,16 +338,14 @@ function OrderForm({
       ...p,
       { serviceId: s.id, quantity: 1, unitPrice: s.price },
     ]);
-    setAddOpen(false);
   }
 
   async function submit() {
     if (!clientId || !vehicleId || !code.trim()) {
-      setError("Preencha código, cliente e veículo.");
+      toast.error("Campos obrigatórios faltando", "código, cliente e veículo");
       return;
     }
     setSaving(true);
-    setError(null);
     const payload = {
       code: code.trim(),
       orderStatus: status,
@@ -359,9 +364,10 @@ function OrderForm({
     try {
       if (order) await updateServiceOrder(order.id, payload);
       else await createServiceOrder(payload);
+      toast.success(order ? "OS atualizada" : "OS criada", payload.code);
       onDone();
-    } catch {
-      setError("Não foi possível salvar a ordem de serviço.");
+    } catch (err) {
+      toast.error("Não foi possível salvar a ordem de serviço", errorDetail(err));
       setSaving(false);
     }
   }
@@ -370,6 +376,7 @@ function OrderForm({
   const selectedVehicle = vehicles.find((v) => v.id === vehicleId) ?? null;
 
   const { can } = useAuth();
+  const toast = useToast();
   const canExpense = can("FINANCIAL_WRITE");
   const [expName, setExpName] = useState("");
   const [expAmount, setExpAmount] = useState("");
@@ -378,19 +385,17 @@ function OrderForm({
   );
   const [osExpenses, setOsExpenses] = useState<ExpenseItem[]>([]);
   const [expSaving, setExpSaving] = useState(false);
-  const [expError, setExpError] = useState<string | null>(null);
 
   async function launchExpense() {
     if (!expName.trim() || !expAmount) {
-      setExpError("Informe o nome e o valor da despesa.");
+      toast.error("Campos obrigatórios faltando", "nome e valor da despesa");
       return;
     }
     if (!code.trim()) {
-      setExpError("Defina o código da OS antes de lançar despesas.");
+      toast.error("Defina o código da OS antes de lançar despesas");
       return;
     }
     setExpSaving(true);
-    setExpError(null);
     try {
       const created = await createExpense({
         description: `OS ${code.trim()} · ${expName.trim()}`,
@@ -401,16 +406,22 @@ function OrderForm({
       if (created) setOsExpenses((p) => [created, ...p]);
       setExpName("");
       setExpAmount("");
-    } catch {
-      setExpError("Não foi possível lançar a despesa.");
+      toast.success("Despesa lançada", expName.trim());
+    } catch (err) {
+      toast.error("Não foi possível lançar a despesa", errorDetail(err));
     } finally {
       setExpSaving(false);
     }
   }
 
   async function removeExpense(e: ExpenseItem) {
-    await deleteExpense(e.id);
-    setOsExpenses((p) => p.filter((x) => x.id !== e.id));
+    try {
+      await deleteExpense(e.id);
+      setOsExpenses((p) => p.filter((x) => x.id !== e.id));
+      toast.success("Despesa removida");
+    } catch (err) {
+      toast.error("Não foi possível remover a despesa", errorDetail(err));
+    }
   }
 
   useEffect(() => {
@@ -548,41 +559,7 @@ function OrderForm({
             <FileText size={18} className="text-link-blue" />
             <CardTitle>Serviços</CardTitle>
             <span className="ml-auto">
-              <div className="relative">
-                <Button
-                  variant="soft"
-                  size="sm"
-                  onClick={() => setAddOpen((o) => !o)}
-                >
-                  <Plus size={15} />
-                  Adicionar serviço
-                </Button>
-                {addOpen && (
-                  <div className="fade-in absolute right-0 top-[38px] z-30 max-h-[280px] w-[300px] overflow-y-auto rounded-lg border border-border bg-menu p-1.5 shadow-pop">
-                    {services.length === 0 ? (
-                      <div className="px-2.5 py-2 text-[13px] text-text-3">
-                        Nenhum serviço cadastrado.
-                      </div>
-                    ) : (
-                      services.map((s) => (
-                        <button
-                          key={s.id}
-                          type="button"
-                          onClick={() => addService(s)}
-                          className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left hover:bg-row-hover"
-                        >
-                          <span className="flex-1 text-[13px]">
-                            {s.serviceName}
-                          </span>
-                          <span className="font-mono text-xs text-text-3">
-                            {brl(s.price)}
-                          </span>
-                        </button>
-                      ))
-                    )}
-                  </div>
-                )}
-              </div>
+              <AddServiceMenu services={services} onPick={addService} />
             </span>
           </CardHeader>
           <Table>
@@ -710,11 +687,6 @@ function OrderForm({
                   Lançar
                 </Button>
               </div>
-              {expError && (
-                <div className="text-[12px] font-medium text-danger">
-                  {expError}
-                </div>
-              )}
               {osExpenses.length > 0 && (
                 <div className="flex flex-col divide-y divide-border">
                   {osExpenses.map((e) => (
@@ -772,12 +744,6 @@ function OrderForm({
               <span className="font-bold">Total</span>
               <span className="font-mono text-base font-bold">{brl(total)}</span>
             </div>
-
-            {error && (
-              <div className="mt-3 text-[12px] font-medium text-danger">
-                {error}
-              </div>
-            )}
 
             <div className="mt-4 flex flex-col gap-2.5">
               <Button block onClick={submit} disabled={saving}>
