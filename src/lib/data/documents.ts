@@ -19,6 +19,10 @@ export function getDocument(id: number): Promise<GeneratedDocument> {
   return apiGet<GeneratedDocument>(`/documents/${id}`);
 }
 
+export function deleteDocument(id: number) {
+  return apiSend<void>("DELETE", `/documents/${id}`);
+}
+
 export async function downloadDocumentPdf(
   id: number,
   filename: string,

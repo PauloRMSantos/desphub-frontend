@@ -359,6 +359,7 @@ export interface OrderStatusCount {
 }
 
 export type TemplateCategory = "PROCURACAO" | "DECLARACAO" | "OUTRO";
+export type PartyRole = "OUTORGANTE" | "OUTORGADO";
 export type GroupSelectionType = "SINGLE" | "MULTI";
 export type VariableSource =
   | "CLIENT"
@@ -391,6 +392,7 @@ export interface TemplateVariable {
   source: VariableSource;
   sourceField?: string | null;
   required: boolean;
+  partyRole?: PartyRole | null;
 }
 
 export interface Template {
@@ -432,6 +434,7 @@ export interface CreateTemplateVariableDTO {
   source: VariableSource;
   sourceField?: string | null;
   required?: boolean;
+  partyRole?: PartyRole | null;
 }
 
 export interface CreateTemplateDTO {

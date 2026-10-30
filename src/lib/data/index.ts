@@ -1,3 +1,4 @@
+export { ApiError, errorDetail } from "./http";
 export {
   getClients,
   getClient,
@@ -64,6 +65,7 @@ export {
   generateDocument,
   getDocuments,
   getDocument,
+  deleteDocument,
   downloadDocumentPdf,
 } from "./documents";
 export {

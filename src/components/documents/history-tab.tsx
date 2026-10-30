@@ -1,16 +1,21 @@
 "use client";
 
-import { useState } from "react";
-import { FileText, Download } from "lucide-react";
+import { useEffect, useState } from "react";
+import { FileText, Download, Clock, Trash2 } from "lucide-react";
 import { useResource } from "@/hooks/use-resource";
 import {
   getDocuments,
   getClients,
   getDocument,
+  deleteDocument,
   downloadDocumentPdf,
+  errorDetail,
 } from "@/lib/data";
-import type { GeneratedDocument } from "@/types";
+import type { GeneratedDocument, GeneratedDocumentSummary } from "@/types";
 import { formatDateTimeBR } from "@/lib/format";
+import { useAuth } from "@/components/auth/auth-provider";
+import { useConfirm } from "@/components/providers/confirm-provider";
+import { useToast } from "@/components/providers/toast-provider";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -20,6 +25,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Modal } from "@/components/ui/modal";
+import { Pagination } from "@/components/ui/pagination";
+
+const PAGE_SIZE = 10;
 
 export function HistoryTab() {
   const clients = useResource(getClients, []);
@@ -31,6 +39,12 @@ export function HistoryTab() {
 
   const [detail, setDetail] = useState<GeneratedDocument | null>(null);
   const [opening, setOpening] = useState(false);
+  const [page, setPage] = useState(1);
+
+  const { can } = useAuth();
+  const canWrite = can("DOCUMENTS_WRITE");
+  const { confirm } = useConfirm();
+  const toast = useToast();
 
   async function open(id: number) {
     setOpening(true);
@@ -41,7 +55,35 @@ export function HistoryTab() {
     }
   }
 
+  async function remove(d: GeneratedDocumentSummary) {
+    const ok = await confirm({
+      title: "Excluir documento",
+      message: `Excluir "${d.templateName}"? Esta ação não pode ser desfeita.`,
+      confirmText: "Excluir",
+      tone: "danger",
+    });
+    if (!ok) return;
+    try {
+      await deleteDocument(d.id);
+      toast.success("Documento excluído", d.templateName);
+      documents.reload();
+    } catch (err) {
+      toast.error("Não foi possível excluir o documento", errorDetail(err));
+    }
+  }
+
   const list = documents.data ?? [];
+  const pageCount = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+
+  useEffect(() => {
+    setPage(1);
+  }, [clientId]);
+
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount);
+  }, [page, pageCount]);
+
+  const visible = list.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <>
@@ -65,6 +107,10 @@ export function HistoryTab() {
               </Select>
             </div>
           </Field>
+          <span className="ml-auto hidden items-center gap-1.5 text-[12px] text-text-3 sm:flex">
+            <Clock size={13} />
+            Documentos são mantidos por 30 dias.
+          </span>
           {opening && <Spinner />}
         </div>
 
@@ -102,7 +148,7 @@ export function HistoryTab() {
               </tr>
             </thead>
             <tbody>
-              {list.map((d) => (
+              {visible.map((d) => (
                 <tr
                   key={d.id}
                   className="cursor-pointer"
@@ -114,7 +160,7 @@ export function HistoryTab() {
                     {d.createdAt ? formatDateTimeBR(d.createdAt) : "—"}
                   </td>
                   <td>
-                    <div className="flex justify-end">
+                    <div className="flex justify-end gap-1">
                       <button
                         type="button"
                         aria-label="Baixar PDF"
@@ -129,6 +175,19 @@ export function HistoryTab() {
                       >
                         <Download size={16} />
                       </button>
+                      {canWrite && (
+                        <button
+                          type="button"
+                          aria-label="Excluir documento"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            remove(d);
+                          }}
+                          className="grid h-8 w-8 place-items-center rounded-[10px] text-text-3 hover:bg-danger-bg hover:text-danger"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -136,6 +195,13 @@ export function HistoryTab() {
             </tbody>
           </Table>
         )}
+
+        <Pagination
+          page={page}
+          pageSize={PAGE_SIZE}
+          total={list.length}
+          onPageChange={setPage}
+        />
       </Card>
 
       {detail && (
