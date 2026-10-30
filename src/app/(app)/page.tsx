@@ -76,8 +76,10 @@ export default function DashboardPage() {
   const clientList = clients.data ?? [];
   const budgetList = budgets.data ?? [];
 
-  const clientName = (id: number) =>
-    clientList.find((c) => c.id === id)?.name ?? `Cliente #${id}`;
+  const clientName = (id: number | null | undefined) => {
+    if (id == null) return "-";
+    return clientList.find((c) => c.id === id)?.name ?? `Cliente #${id}`;
+  };
 
   const openOrders = orderList.filter(
     (o) => o.orderStatus !== "CONCLUIDA",
